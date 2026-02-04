@@ -33,11 +33,14 @@ export type TimeField = "created" | "modified";
 export type StatsCompareMode = "none" | "previous-period" | "fixed-period" | "filter";
 export type StatsCompareDisplay = "number" | "percent";
 export type StatsCompareBasis = "total" | "per-day";
+export type LegendPosition = "auto" | "left" | "right" | "top" | "bottom";
+export type LegendDisplay = "list" | "hover";
 
 export interface WidgetBaseConfig {
   id: string;
   type: WidgetType;
   title?: string;
+  titleSize?: number;
   x: number;
   y: number;
   w: number;
@@ -85,6 +88,8 @@ export interface PieChartWidgetConfig extends WidgetBaseConfig {
   filter?: QueryFilter;
   timeField?: TimeField;
   timeRange?: TimeRangeConfig;
+  legendPosition?: LegendPosition;
+  legendDisplay?: LegendDisplay;
 }
 
 export interface LineChartWidgetConfig extends WidgetBaseConfig {
@@ -581,6 +586,7 @@ const WidgetFrame: React.FC<{
   };
 
   const headerLabel = config.title ?? (editable ? "Widget" : undefined);
+  const headerSize = typeof config.titleSize === "number" ? config.titleSize : undefined;
 
   return (
     <section
@@ -595,6 +601,8 @@ const WidgetFrame: React.FC<{
             justifyContent: "space-between",
             gap: "8px",
             fontWeight: 600,
+            fontSize: headerSize ? `${headerSize}px` : undefined,
+            lineHeight: 1.2,
             marginBottom: configOpen ? "6px" : "8px",
             cursor: editable ? "grab" : "default",
             touchAction: editable ? "none" : "auto",
@@ -820,20 +828,66 @@ const WidgetConfigPanel: React.FC<{
   onUpdate: (updater: (widget: WidgetConfig) => WidgetConfig) => void;
 }> = ({ config, onUpdate }) => {
   const timePresets = useTimePresets();
-  const sharedFields = (
-    <div className="obsd-widget-config-row">
-      <label>Title</label>
-      <input
-        type="text"
-        value={config.title ?? ""}
-        onChange={(event) => {
-          const value = event.target.value.trim();
-          onUpdate((widget) => ({
-            ...widget,
-            title: value.length > 0 ? value : undefined,
-          }));
-        }}
-      />
+  const [activeTab, setActiveTab] = React.useState<"data" | "view">("data");
+
+  const baseViewFields = (
+    <>
+      <div className="obsd-widget-config-row">
+        <label>Title</label>
+        <input
+          type="text"
+          value={config.title ?? ""}
+          onChange={(event) => {
+            const value = event.target.value.trim();
+            onUpdate((widget) => ({
+              ...widget,
+              title: value.length > 0 ? value : undefined,
+            }));
+          }}
+        />
+      </div>
+      <div className="obsd-widget-config-row">
+        <label>Title size</label>
+        <input
+          type="number"
+          value={config.titleSize === undefined ? "" : String(config.titleSize)}
+          placeholder="14"
+          onChange={(event) => {
+            const value = toOptionalNumber(event.target.value);
+            const next = value && value > 0 ? value : undefined;
+            onUpdate((widget) => ({
+              ...widget,
+              titleSize: next,
+            }));
+          }}
+        />
+      </div>
+    </>
+  );
+
+  const viewSection = (extra?: React.ReactNode) => (
+    <div className="obsd-widget-config-section">
+      {baseViewFields}
+      {extra}
+    </div>
+  );
+
+  const tabs = (
+    <div className="obsd-widget-config-tabs">
+      <button
+        type="button"
+        className={`obsd-widget-toggle${activeTab === "data" ? " is-active" : ""}`}
+        onClick={() => setActiveTab("data")}
+      >
+        Data
+      </button>
+      <button
+        type="button"
+        className={`obsd-widget-toggle${activeTab === "view" ? " is-active" : ""}`}
+        onClick={() => setActiveTab("view")}
+      >
+        View
+      </button>
     </div>
   );
 
@@ -852,9 +906,8 @@ const WidgetConfigPanel: React.FC<{
       });
     };
 
-    return (
-      <div className="obsd-widget-config">
-        {sharedFields}
+    const dataFields = (
+      <>
         <div className="obsd-widget-source">
           <div className="obsd-widget-config-note">
             Filters combine with OR. Inside a filter, folders AND tags are combined.
@@ -896,33 +949,33 @@ const WidgetConfigPanel: React.FC<{
                   updateFilters(next);
                 }}
               />
-          {filters.length > 1 ? (
-            <div className="obsd-widget-query-actions">
-              <button
-                type="button"
-                className="obsd-widget-toggle"
-                onClick={() => {
-                  const next = filters.filter((_, i) => i !== index);
-                  updateFilters(next);
-                }}
-              >
-                Remove filter
-              </button>
+              {filters.length > 1 ? (
+                <div className="obsd-widget-query-actions">
+                  <button
+                    type="button"
+                    className="obsd-widget-toggle"
+                    onClick={() => {
+                      const next = filters.filter((_, i) => i !== index);
+                      updateFilters(next);
+                    }}
+                  >
+                    Remove filter
+                  </button>
+                </div>
+              ) : null}
             </div>
-          ) : null}
-        </div>
-      ))}
-      <div className="obsd-widget-query-actions">
-        <button
-          type="button"
-          className="obsd-widget-toggle"
-          onClick={() => {
-            updateFilters([...filters, { tags: "", folders: "", yamlFilters: [] }]);
-          }}
-        >
-          + Add filter
-        </button>
-      </div>
+          ))}
+          <div className="obsd-widget-query-actions">
+            <button
+              type="button"
+              className="obsd-widget-toggle"
+              onClick={() => {
+                updateFilters([...filters, { tags: "", folders: "", yamlFilters: [] }]);
+              }}
+            >
+              + Add filter
+            </button>
+          </div>
           <div className="obsd-widget-config-note">Effective filter: {effectiveQuery}</div>
           <div className="obsd-widget-config-note">Tasks source: file.tasks</div>
         </div>
@@ -953,6 +1006,13 @@ const WidgetConfigPanel: React.FC<{
             }}
           />
         </div>
+      </>
+    );
+
+    return (
+      <div className="obsd-widget-config">
+        {tabs}
+        {activeTab === "data" ? dataFields : viewSection()}
       </div>
     );
   }
@@ -993,9 +1053,8 @@ const WidgetConfigPanel: React.FC<{
       });
     };
 
-    return (
-      <div className="obsd-widget-config">
-        {sharedFields}
+    const dataFields = (
+      <>
         <div className="obsd-widget-config-row">
           <label>Count target</label>
           <select
@@ -1281,6 +1340,13 @@ const WidgetConfigPanel: React.FC<{
             <div className="obsd-widget-config-note">Compare filter: {compareQuery}</div>
           </div>
         ) : null}
+      </>
+    );
+
+    return (
+      <div className="obsd-widget-config">
+        {tabs}
+        {activeTab === "data" ? dataFields : viewSection()}
       </div>
     );
   }
@@ -1304,9 +1370,8 @@ const WidgetConfigPanel: React.FC<{
       });
     };
 
-    return (
-      <div className="obsd-widget-config">
-        {sharedFields}
+    const dataFields = (
+      <>
         <div className="obsd-widget-config-row">
           <label>Count target</label>
           <select
@@ -1428,6 +1493,13 @@ const WidgetConfigPanel: React.FC<{
             }}
           />
         </div>
+      </>
+    );
+
+    return (
+      <div className="obsd-widget-config">
+        {tabs}
+        {activeTab === "data" ? dataFields : viewSection()}
       </div>
     );
   }
@@ -1439,9 +1511,8 @@ const WidgetConfigPanel: React.FC<{
   const timeField = chartConfig.timeField ?? "modified";
   const timeRange = normalizeTimeRange(chartConfig.timeRange);
 
-  return (
-    <div className="obsd-widget-config">
-      {sharedFields}
+  const dataFields = (
+    <>
       <div className="obsd-widget-config-row">
         <label>Chart data mode</label>
         <select
@@ -1707,6 +1778,62 @@ const WidgetConfigPanel: React.FC<{
           ) : null}
         </div>
       )}
+    </>
+  );
+
+  const viewFields =
+    config.type === "pie-chart"
+      ? viewSection(
+          <>
+            <div className="obsd-widget-config-row">
+              <label>Legend position</label>
+              <select
+                value={chartConfig.legendPosition ?? "auto"}
+                onChange={(event) => {
+                  const value = event.target.value as LegendPosition;
+                  onUpdate((widget) => {
+                    if (widget.type !== "pie-chart") return widget;
+                    return {
+                      ...widget,
+                      legendPosition: value,
+                    };
+                  });
+                }}
+              >
+                <option value="auto">Auto</option>
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+                <option value="bottom">Bottom</option>
+                <option value="top">Top</option>
+              </select>
+            </div>
+            <div className="obsd-widget-config-row">
+              <label>Legend labels</label>
+              <select
+                value={chartConfig.legendDisplay ?? "list"}
+                onChange={(event) => {
+                  const value = event.target.value as LegendDisplay;
+                  onUpdate((widget) => {
+                    if (widget.type !== "pie-chart") return widget;
+                    return {
+                      ...widget,
+                      legendDisplay: value,
+                    };
+                  });
+                }}
+              >
+                <option value="list">Show list</option>
+                <option value="hover">Hover only</option>
+              </select>
+            </div>
+          </>
+        )
+      : viewSection();
+
+  return (
+    <div className="obsd-widget-config">
+      {tabs}
+      {activeTab === "data" ? dataFields : viewFields}
     </div>
   );
 };
@@ -2178,11 +2305,22 @@ const PieChartWidget: React.FC<WidgetComponentProps<PieChartWidgetConfig>> = ({
   if (error) return <div>{error}</div>;
   if (data.length === 0) return <div>No data available.</div>;
 
+  const legendDisplay = config.legendDisplay ?? "list";
+  const legendPosition = resolveLegendPosition(
+    config.legendPosition ?? "auto",
+    config
+  );
+  const showLegend = legendDisplay === "list";
+
   return (
-    <div className="obsd-chart">
+    <div
+      className={`obsd-chart${
+        showLegend ? ` is-legend-${legendPosition}` : " is-legend-none"
+      }`}
+    >
       <div className="obsd-chart-area">
         <ResponsiveContainer width="100%" height="100%">
-          <PieChart margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+          <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
             <Pie
               data={data}
               dataKey="value"
@@ -2204,18 +2342,20 @@ const PieChartWidget: React.FC<WidgetComponentProps<PieChartWidgetConfig>> = ({
           </PieChart>
         </ResponsiveContainer>
       </div>
-      <div className="obsd-chart-legend">
-        {data.map((entry, index) => (
-          <div className="obsd-chart-legend-item" key={`${entry.name}-${index}`}>
-            <span
-              className="obsd-chart-legend-swatch"
-              style={{ background: CHART_COLORS[index % CHART_COLORS.length] }}
-            />
-            <span className="obsd-chart-legend-label">{entry.name}</span>
-            <span className="obsd-chart-legend-value">{entry.value}</span>
-          </div>
-        ))}
-      </div>
+      {showLegend ? (
+        <div className="obsd-chart-legend">
+          {data.map((entry, index) => (
+            <div className="obsd-chart-legend-item" key={`${entry.name}-${index}`}>
+              <span
+                className="obsd-chart-legend-swatch"
+                style={{ background: CHART_COLORS[index % CHART_COLORS.length] }}
+              />
+              <span className="obsd-chart-legend-label">{entry.name}</span>
+              <span className="obsd-chart-legend-value">{entry.value}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 };
@@ -2810,6 +2950,16 @@ function getChartDataMode(config: PieChartWidgetConfig | LineChartWidgetConfig):
   if (config.dataMode) return config.dataMode;
   if (Array.isArray(config.series) && config.series.length > 0) return "series";
   return "group";
+}
+
+function resolveLegendPosition(
+  position: LegendPosition,
+  config: WidgetBaseConfig
+): LegendPosition {
+  if (position !== "auto") return position;
+  const width = config.w ?? 2;
+  const height = config.h ?? 2;
+  return width >= Math.max(4, height + 1) ? "left" : "bottom";
 }
 
 function ensureChartSeries(
