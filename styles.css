@@ -86,6 +86,22 @@
   margin-top: -2px;
 }
 
+.obsd-widget-yaml {
+  display: grid;
+  gap: 6px;
+  padding-top: 4px;
+}
+
+.obsd-widget-yaml-row {
+  padding-top: 6px;
+  border-top: 1px dashed var(--background-modifier-border);
+}
+
+.obsd-widget-yaml-row:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
 .obsd-widget-body {
   flex: 1;
   min-height: 0;

@@ -20,7 +20,11 @@ import {
   isCalendarPreset,
 } from "./timePresets";
 
-export type WidgetType = "task-list" | "pie-chart" | "line-chart" | "stats";
+export type WidgetType =
+  | "task-list"
+  | "pie-chart"
+  | "line-chart"
+  | "stats";
 export type ChartDataMode = "group" | "series";
 export type ChartCountMode = "pages" | "tasks";
 export type StatsCountTarget = "files" | "tasks";
@@ -94,9 +98,15 @@ export interface ChartSeriesConfig {
   timeRange?: TimeRangeConfig;
 }
 
+export interface YamlFilter {
+  key: string;
+  values: string;
+}
+
 export interface QueryFilter {
   tags?: string;
   folders?: string;
+  yamlFilters?: YamlFilter[];
 }
 
 export interface TimeRangeConfig {
@@ -274,7 +284,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           y: maxY,
           w: 2,
           h: 3,
-          filters: [{ tags: "", folders: "" }],
+          filters: [{ tags: "", folders: "", yamlFilters: [] }],
           showCompleted: false,
           limit: 10,
         };
@@ -289,7 +299,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           w: 2,
           h: 2,
           countTarget: "files",
-          filters: [{ tags: "", folders: "" }],
+          filters: [{ tags: "", folders: "", yamlFilters: [] }],
           timeField: "modified",
           timeRange: { preset: "all" },
           compareMode: "none",
@@ -314,13 +324,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {
               id: `series-${Date.now()}`,
               label: "Series 1",
-              filter: { tags: "", folders: "" },
+              filter: { tags: "", folders: "", yamlFilters: [] },
               countMode: "pages",
               timeField: "modified",
               timeRange: { preset: "all" },
             },
           ],
-          filter: { tags: "", folders: "" },
+          filter: { tags: "", folders: "", yamlFilters: [] },
         };
       } else {
         widget = {
@@ -339,13 +349,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             {
               id: `series-${Date.now()}`,
               label: "Series 1",
-              filter: { tags: "", folders: "" },
+              filter: { tags: "", folders: "", yamlFilters: [] },
               countMode: "pages",
               timeField: "modified",
               timeRange: { preset: "all" },
             },
           ],
-          filter: { tags: "", folders: "" },
+          filter: { tags: "", folders: "", yamlFilters: [] },
         };
       }
 
@@ -610,6 +620,79 @@ type TimeRangeEditorProps = {
   rangeLabel?: string;
 };
 
+type YamlFilterEditorProps = {
+  yamlFilters: YamlFilter[];
+  onChange: (next: YamlFilter[]) => void;
+  labelPrefix?: string;
+};
+
+const YamlFilterEditor: React.FC<YamlFilterEditorProps> = ({
+  yamlFilters,
+  onChange,
+  labelPrefix,
+}) => {
+  const filters = Array.isArray(yamlFilters) ? yamlFilters : [];
+  const prefix = labelPrefix ? `${labelPrefix} ` : "";
+
+  return (
+    <div className="obsd-widget-yaml">
+      {filters.map((entry, index) => (
+        <div className="obsd-widget-yaml-row" key={`yaml-${index}`}>
+          <div className="obsd-widget-config-row">
+            <label>{`${prefix}YAML ${index + 1} key`}</label>
+            <input
+              type="text"
+              value={entry.key}
+              placeholder="Status"
+              onChange={(event) => {
+                const next = [...filters];
+                next[index] = { ...entry, key: event.target.value };
+                onChange(next);
+              }}
+            />
+          </div>
+          <div className="obsd-widget-config-row">
+            <label>{`${prefix}YAML ${index + 1} values`}</label>
+            <input
+              type="text"
+              value={entry.values}
+              placeholder="ready, todo"
+              onChange={(event) => {
+                const next = [...filters];
+                next[index] = { ...entry, values: event.target.value };
+                onChange(next);
+              }}
+            />
+          </div>
+          {filters.length > 1 ? (
+            <div className="obsd-widget-query-actions">
+              <button
+                type="button"
+                className="obsd-widget-toggle"
+                onClick={() => {
+                  const next = filters.filter((_, idx) => idx !== index);
+                  onChange(next);
+                }}
+              >
+                Remove YAML
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ))}
+      <div className="obsd-widget-query-actions">
+        <button
+          type="button"
+          className="obsd-widget-toggle"
+          onClick={() => onChange([...filters, { key: "", values: "" }])}
+        >
+          + Add YAML filter
+        </button>
+      </div>
+    </div>
+  );
+};
+
 const TimeRangeEditor: React.FC<TimeRangeEditorProps> = ({
   timeField,
   timeRange,
@@ -732,7 +815,7 @@ const WidgetConfigPanel: React.FC<{
     const effectiveQuery = buildQueryFromFilters(filters);
 
     const updateFilters = (next: QueryFilter[]) => {
-      const nextFilters = next.length > 0 ? next : [{ tags: "", folders: "" }];
+      const nextFilters = next.length > 0 ? next : [{ tags: "", folders: "", yamlFilters: [] }];
       onUpdate((widget) => {
         if (widget.type !== "task-list") return widget;
         return {
@@ -777,33 +860,42 @@ const WidgetConfigPanel: React.FC<{
                   }}
                 />
               </div>
-              {filters.length > 1 ? (
-                <div className="obsd-widget-query-actions">
-                  <button
-                    type="button"
-                    className="obsd-widget-toggle"
-                    onClick={() => {
-                      const next = filters.filter((_, i) => i !== index);
-                      updateFilters(next);
-                    }}
-                  >
-                    Remove filter
-                  </button>
-                </div>
-              ) : null}
+              <YamlFilterEditor
+                yamlFilters={filter.yamlFilters ?? []}
+                labelPrefix={`Filter ${index + 1}`}
+                onChange={(yamlFilters) => {
+                  const next = [...filters];
+                  next[index] = { ...filter, yamlFilters };
+                  updateFilters(next);
+                }}
+              />
+          {filters.length > 1 ? (
+            <div className="obsd-widget-query-actions">
+              <button
+                type="button"
+                className="obsd-widget-toggle"
+                onClick={() => {
+                  const next = filters.filter((_, i) => i !== index);
+                  updateFilters(next);
+                }}
+              >
+                Remove filter
+              </button>
             </div>
-          ))}
-          <div className="obsd-widget-query-actions">
-            <button
-              type="button"
-              className="obsd-widget-toggle"
-              onClick={() => {
-                updateFilters([...filters, { tags: "", folders: "" }]);
-              }}
-            >
-              + Add filter
-            </button>
-          </div>
+          ) : null}
+        </div>
+      ))}
+      <div className="obsd-widget-query-actions">
+        <button
+          type="button"
+          className="obsd-widget-toggle"
+          onClick={() => {
+            updateFilters([...filters, { tags: "", folders: "", yamlFilters: [] }]);
+          }}
+        >
+          + Add filter
+        </button>
+      </div>
           <div className="obsd-widget-config-note">Effective filter: {effectiveQuery}</div>
           <div className="obsd-widget-config-note">Tasks source: file.tasks</div>
         </div>
@@ -853,7 +945,7 @@ const WidgetConfigPanel: React.FC<{
     const hasBoundedRange = rangeHasBounds(resolveTimeRange(timeRange, timePresets));
 
     const updateFilters = (next: QueryFilter[]) => {
-      const nextFilters = next.length > 0 ? next : [{ tags: "", folders: "" }];
+      const nextFilters = next.length > 0 ? next : [{ tags: "", folders: "", yamlFilters: [] }];
       onUpdate((widget) => {
         if (widget.type !== "stats") return widget;
         return {
@@ -864,7 +956,7 @@ const WidgetConfigPanel: React.FC<{
     };
 
     const updateCompareFilters = (next: QueryFilter[]) => {
-      const nextFilters = next.length > 0 ? next : [{ tags: "", folders: "" }];
+      const nextFilters = next.length > 0 ? next : [{ tags: "", folders: "", yamlFilters: [] }];
       onUpdate((widget) => {
         if (widget.type !== "stats") return widget;
         return {
@@ -928,6 +1020,15 @@ const WidgetConfigPanel: React.FC<{
                   }}
                 />
               </div>
+              <YamlFilterEditor
+                yamlFilters={filter.yamlFilters ?? []}
+                labelPrefix={`Filter ${index + 1}`}
+                onChange={(yamlFilters) => {
+                  const next = [...filters];
+                  next[index] = { ...filter, yamlFilters };
+                  updateFilters(next);
+                }}
+              />
               {filters.length > 1 ? (
                 <div className="obsd-widget-query-actions">
                   <button
@@ -949,7 +1050,7 @@ const WidgetConfigPanel: React.FC<{
               type="button"
               className="obsd-widget-toggle"
               onClick={() => {
-                updateFilters([...filters, { tags: "", folders: "" }]);
+                updateFilters([...filters, { tags: "", folders: "", yamlFilters: [] }]);
               }}
             >
               + Add filter
@@ -1111,6 +1212,15 @@ const WidgetConfigPanel: React.FC<{
                     }}
                   />
                 </div>
+                <YamlFilterEditor
+                  yamlFilters={filter.yamlFilters ?? []}
+                  labelPrefix={`Compare ${index + 1}`}
+                  onChange={(yamlFilters) => {
+                    const next = [...compareFilters];
+                    next[index] = { ...filter, yamlFilters };
+                    updateCompareFilters(next);
+                  }}
+                />
                 {compareFilters.length > 1 ? (
                   <div className="obsd-widget-query-actions">
                     <button
@@ -1132,7 +1242,10 @@ const WidgetConfigPanel: React.FC<{
                 type="button"
                 className="obsd-widget-toggle"
                 onClick={() => {
-                  updateCompareFilters([...compareFilters, { tags: "", folders: "" }]);
+                  updateCompareFilters([
+                    ...compareFilters,
+                    { tags: "", folders: "", yamlFilters: [] },
+                  ]);
                 }}
               >
                 + Add compare filter
@@ -1234,6 +1347,20 @@ const WidgetConfigPanel: React.FC<{
               }}
             />
           </div>
+          <YamlFilterEditor
+            yamlFilters={chartConfig.filter?.yamlFilters ?? []}
+            labelPrefix="Filter"
+            onChange={(yamlFilters) => {
+              onUpdate((widget) => {
+                if (widget.type !== "pie-chart" && widget.type !== "line-chart") return widget;
+                const base = widget.filter ?? deriveFilterFromLegacyQuery(widget.query);
+                return {
+                  ...widget,
+                  filter: { ...base, yamlFilters },
+                };
+              });
+            }}
+          />
           <div className="obsd-widget-config-row">
             <label>Group by</label>
             <select
@@ -1334,6 +1461,18 @@ const WidgetConfigPanel: React.FC<{
                   }}
                 />
               </div>
+              <YamlFilterEditor
+                yamlFilters={entry.filter?.yamlFilters ?? []}
+                labelPrefix={`Series ${index + 1}`}
+                onChange={(yamlFilters) => {
+                  const next = [...series];
+                  next[index] = {
+                    ...entry,
+                    filter: { ...entry.filter, yamlFilters },
+                  };
+                  onUpdate((widget) => updateChartSeries(widget, next));
+                }}
+              />
               <TimeRangeEditor
                 timeField={entry.timeField ?? "modified"}
                 timeRange={normalizeTimeRange(entry.timeRange)}
@@ -1374,7 +1513,7 @@ const WidgetConfigPanel: React.FC<{
                   {
                     id: `series-${Date.now()}`,
                     label: `Series ${series.length + 1}`,
-                    filter: { tags: "", folders: "" },
+                    filter: { tags: "", folders: "", yamlFilters: [] },
                     countMode: "pages",
                     timeField: "modified",
                     timeRange: { preset: "all" },
@@ -1506,8 +1645,7 @@ const TaskListWidget: React.FC<WidgetComponentProps<TaskListWidgetConfig>> = ({
   const [tasks, setTasks] = React.useState<Task[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-
-  const taskQuery = buildTaskQuery(config);
+  const filters = ensureTaskFilters(config);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -1517,7 +1655,7 @@ const TaskListWidget: React.FC<WidgetComponentProps<TaskListWidgetConfig>> = ({
       setError(null);
 
       try {
-        const results = await dataSource.queryTasks(taskQuery);
+        const results = await queryTasksForFilters(dataSource, filters);
         const filtered = config.showCompleted
           ? results
           : results.filter((task) => !task.completed);
@@ -1535,7 +1673,7 @@ const TaskListWidget: React.FC<WidgetComponentProps<TaskListWidgetConfig>> = ({
     return () => {
       cancelled = true;
     };
-  }, [dataSource, taskQuery, config.showCompleted, config.limit]);
+  }, [dataSource, filters, config.showCompleted, config.limit]);
 
   const toggleTask = async (task: Task) => {
     if (task.line < 0) return;
@@ -1596,8 +1734,6 @@ const StatsWidget: React.FC<WidgetComponentProps<StatsWidgetConfig>> = ({
 
   const filters = ensureStatFilters(config.filters);
   const compareFilters = ensureStatFilters(config.compareFilters);
-  const query = buildQueryFromFilters(filters);
-  const compareQuery = buildQueryFromFilters(compareFilters);
   const countTarget = config.countTarget ?? "files";
   const timeField = config.timeField ?? "modified";
   const timeRange = normalizeTimeRange(config.timeRange);
@@ -1619,7 +1755,7 @@ const StatsWidget: React.FC<WidgetComponentProps<StatsWidgetConfig>> = ({
         const baseResult = await countByTarget(
           dataSource,
           countTarget,
-          query,
+          filters,
           timeField,
           resolvedRange
         );
@@ -1632,7 +1768,7 @@ const StatsWidget: React.FC<WidgetComponentProps<StatsWidgetConfig>> = ({
             const compareResult = await countByTarget(
               dataSource,
               countTarget,
-              query,
+              filters,
               timeField,
               previous
             );
@@ -1643,7 +1779,7 @@ const StatsWidget: React.FC<WidgetComponentProps<StatsWidgetConfig>> = ({
           const compareResult = await countByTarget(
             dataSource,
             countTarget,
-            query,
+            filters,
             timeField,
             fixedRange
           );
@@ -1652,7 +1788,7 @@ const StatsWidget: React.FC<WidgetComponentProps<StatsWidgetConfig>> = ({
           const compareResult = await countByTarget(
             dataSource,
             countTarget,
-            compareQuery,
+            compareFilters,
             timeField,
             resolvedRange
           );
@@ -1677,8 +1813,8 @@ const StatsWidget: React.FC<WidgetComponentProps<StatsWidgetConfig>> = ({
   }, [
     dataSource,
     countTarget,
-    query,
-    compareQuery,
+    filters,
+    compareFilters,
     timeField,
     timeRange,
     compareRange,
@@ -1752,10 +1888,8 @@ const PieChartWidget: React.FC<WidgetComponentProps<PieChartWidgetConfig>> = ({
             normalizeTimeRange(config.timeRange),
             timePresets
           );
-          const query = buildQueryFromFilter(
-            config.filter ?? deriveFilterFromLegacyQuery(config.query)
-          );
-          const pages = await dataSource.queryPages(query);
+          const filter = config.filter ?? deriveFilterFromLegacyQuery(config.query);
+          const pages = await queryPagesForFilters(dataSource, [filter]);
           const filteredPages = filterPagesByTime(pages, timeField, timeRange);
           const grouped = groupPages(filteredPages, config.groupBy, config.limit);
           if (!cancelled) setData(grouped);
@@ -1860,10 +1994,8 @@ const LineChartWidget: React.FC<WidgetComponentProps<LineChartWidgetConfig>> = (
             normalizeTimeRange(config.timeRange),
             timePresets
           );
-          const query = buildQueryFromFilter(
-            config.filter ?? deriveFilterFromLegacyQuery(config.query)
-          );
-          const pages = await dataSource.queryPages(query);
+          const filter = config.filter ?? deriveFilterFromLegacyQuery(config.query);
+          const pages = await queryPagesForFilters(dataSource, [filter]);
           const filteredPages = filterPagesByTime(pages, timeField, timeRange);
           const grouped = groupPages(filteredPages, config.groupBy, config.limit);
           if (!cancelled) setData(grouped);
@@ -1988,11 +2120,6 @@ const groupPages = (
 const increment = (map: Map<string, number>, key: string) => {
   map.set(key, (map.get(key) ?? 0) + 1);
 };
-
-function buildTaskQuery(config: TaskListWidgetConfig): string {
-  const filters = ensureTaskFilters(config);
-  return buildQueryFromFilters(filters);
-}
 
 function parseTags(value: string): string[] {
   return value
@@ -2159,7 +2286,7 @@ function addDays(date: Date, days: number): Date {
 }
 
 function deriveFilterFromLegacyQuery(query: string): QueryFilter {
-  if (!query) return { tags: "", folders: "" };
+  if (!query) return { tags: "", folders: "", yamlFilters: [] };
   const tagMatches = Array.from(query.matchAll(/#([A-Za-z0-9/_-]+)/g)).map(
     (match) => match[1]
   );
@@ -2170,6 +2297,7 @@ function deriveFilterFromLegacyQuery(query: string): QueryFilter {
   return {
     tags: tagMatches.join(", "),
     folders: folderMatches.join(", "),
+    yamlFilters: [],
   };
 }
 
@@ -2179,12 +2307,12 @@ function ensureTaskFilters(config: TaskListWidgetConfig): QueryFilter[] {
   }
   const legacyTags = (config as TaskListWidgetConfig & { tagFilter?: string }).tagFilter;
   if (legacyTags) {
-    return [{ tags: legacyTags, folders: "" }];
+    return [{ tags: legacyTags, folders: "", yamlFilters: [] }];
   }
   if (config.filter) {
     return [deriveFilterFromLegacyQuery(config.filter)];
   }
-  return [{ tags: "", folders: "" }];
+  return [{ tags: "", folders: "", yamlFilters: [] }];
 }
 
 function buildQueryFromFilters(filters: QueryFilter[]): string {
@@ -2206,12 +2334,128 @@ function buildQueryFromFilters(filters: QueryFilter[]): string {
 function buildQueryFromFilter(filter: QueryFilter): string {
   const tagsExpr = buildTagsExpression(filter.tags ?? "");
   const folderExpr = buildFoldersExpression(filter.folders ?? "");
+  const yamlExpr = buildYamlExpression(filter.yamlFilters ?? []);
 
-  if (!tagsExpr && !folderExpr) return "";
-  if (!tagsExpr) return folderExpr;
-  if (!folderExpr) return tagsExpr;
+  const parts = [folderExpr, tagsExpr, yamlExpr].filter((part) => part.length > 0);
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0];
+  return parts.map((part) => `(${part})`).join(" AND ");
+}
 
-  return `(${folderExpr}) AND (${tagsExpr})`;
+function buildSourceFromFilter(filter: QueryFilter): string {
+  const tagsExpr = buildTagsExpression(filter.tags ?? "");
+  const folderExpr = buildFoldersExpression(filter.folders ?? "");
+  const parts = [folderExpr, tagsExpr].filter((part) => part.length > 0);
+  if (parts.length === 0) return "";
+  if (parts.length === 1) return parts[0];
+  return parts.map((part) => `(${part})`).join(" AND ");
+}
+
+function filterPagesByYaml(pages: Page[], yamlFilters: YamlFilter[]): Page[] {
+  const active = normalizeYamlFilters(yamlFilters);
+  if (active.length === 0) return pages;
+
+  return pages.filter((page) => {
+    const frontmatter = page.frontmatter ?? {};
+    return active.every((filter) => {
+      const value = (frontmatter as Record<string, unknown>)[filter.key];
+      return matchYamlValue(value, filter.values);
+    });
+  });
+}
+
+function normalizeYamlFilters(filters: YamlFilter[]): Array<{ key: string; values: string[] }> {
+  if (!filters || filters.length === 0) return [];
+  return filters
+    .map((filter) => {
+      const key = filter.key?.trim();
+      const values = parseTags(filter.values ?? "");
+      if (!key || values.length === 0) return null;
+      return { key, values };
+    })
+    .filter((entry): entry is { key: string; values: string[] } => Boolean(entry));
+}
+
+function matchYamlValue(value: unknown, values: string[]): boolean {
+  if (value === null || value === undefined) return false;
+  if (Array.isArray(value)) {
+    return value.some((entry) => values.includes(String(entry)));
+  }
+  return values.includes(String(value));
+}
+
+function filterTasksByPages(tasks: Task[], pages: Page[]): Task[] {
+  const allowed = new Set(pages.map((page) => page.path));
+  return tasks.filter((task) => allowed.has(task.path));
+}
+
+async function queryPagesForFilters(
+  dataSource: IDataSource,
+  filters: QueryFilter[]
+): Promise<Page[]> {
+  const activeFilters = filters.length > 0 ? filters : [{ tags: "", folders: "", yamlFilters: [] }];
+  const results = new Map<string, Page>();
+
+  for (const filter of activeFilters) {
+    const source = buildSourceFromFilter(filter);
+    const pages = await dataSource.queryPages(source);
+    const filtered = filter.yamlFilters?.length
+      ? filterPagesByYaml(pages, filter.yamlFilters)
+      : pages;
+    for (const page of filtered) {
+      results.set(page.path, page);
+    }
+  }
+
+  return Array.from(results.values());
+}
+
+async function queryTasksForFilters(
+  dataSource: IDataSource,
+  filters: QueryFilter[]
+): Promise<Task[]> {
+  const activeFilters = filters.length > 0 ? filters : [{ tags: "", folders: "", yamlFilters: [] }];
+  const results = new Map<string, Task>();
+
+  for (const filter of activeFilters) {
+    const source = buildSourceFromFilter(filter);
+    let tasks = await dataSource.queryTasks(source);
+    if (filter.yamlFilters?.length) {
+      const pages = await dataSource.queryPages(source);
+      const filteredPages = filterPagesByYaml(pages, filter.yamlFilters);
+      tasks = filterTasksByPages(tasks, filteredPages);
+    }
+    for (const task of tasks) {
+      const key = `${task.path}:${task.line}`;
+      results.set(key, task);
+    }
+  }
+
+  return Array.from(results.values());
+}
+
+function buildYamlExpression(filters: YamlFilter[]): string {
+  if (!filters || filters.length === 0) return "";
+  const clauses = filters
+    .map((filter) => {
+      const key = filter.key?.trim();
+      if (!key) return "";
+      const values = parseTags(filter.values ?? "");
+      if (values.length === 0) return "";
+      const escaped = values.map((value) => escapeQueryValue(value));
+      const checks = escaped.map((value) => `contains(${key}, "${value}")`);
+      if (checks.length === 1) return checks[0];
+      return `(${checks.join(" OR ")})`;
+    })
+    .filter((clause) => clause.length > 0);
+
+  if (clauses.length === 0) return "";
+  if (clauses.length === 1) return clauses[0];
+  return clauses.map((clause) => `(${clause})`).join(" AND ");
+}
+
+function escapeQueryValue(value: string): string {
+  return value.replace(/"/g, '\\"');
 }
 
 function buildTagsExpression(value: string): string {
@@ -2230,7 +2474,7 @@ function buildFoldersExpression(value: string): string {
 
 function ensureStatFilters(filters?: QueryFilter[]): QueryFilter[] {
   if (Array.isArray(filters) && filters.length > 0) return filters;
-  return [{ tags: "", folders: "" }];
+  return [{ tags: "", folders: "", yamlFilters: [] }];
 }
 
 function filterPagesByTime(
@@ -2275,17 +2519,17 @@ type CountResult = {
 async function countByTarget(
   dataSource: IDataSource,
   target: StatsCountTarget,
-  query: string,
+  filters: QueryFilter[],
   timeField: TimeField,
   range: ResolvedTimeRange
 ): Promise<CountResult> {
   if (target === "tasks") {
-    const tasks = await dataSource.queryTasks(query);
+    const tasks = await queryTasksForFilters(dataSource, filters);
     const filtered = filterTasksByTime(tasks, timeField, range);
     return { count: filtered.length, days: range.days };
   }
 
-  const pages = await dataSource.queryPages(query);
+  const pages = await queryPagesForFilters(dataSource, filters);
   const filtered = filterPagesByTime(pages, timeField, range);
   return { count: filtered.length, days: range.days };
 }
@@ -2352,7 +2596,7 @@ function ensureChartSeries(
       }
       return {
         ...entry,
-        filter: entry.filter ?? { tags: "", folders: "" },
+        filter: entry.filter ?? { tags: "", folders: "", yamlFilters: [] },
         timeField: entry.timeField ?? "modified",
         timeRange: entry.timeRange ?? { preset: "all" },
       };
@@ -2364,7 +2608,9 @@ function ensureChartSeries(
     {
       id: "legacy-series",
       label: config.title ?? "Series 1",
-      filter: legacyQuery ? deriveFilterFromLegacyQuery(legacyQuery) : { tags: "", folders: "" },
+      filter: legacyQuery
+        ? deriveFilterFromLegacyQuery(legacyQuery)
+        : { tags: "", folders: "", yamlFilters: [] },
       countMode: "pages",
       timeField: "modified",
       timeRange: { preset: "all" },
@@ -2404,17 +2650,18 @@ async function buildSeriesCounts(
   const results: Array<{ name: string; value: number }> = [];
 
   for (const entry of series) {
-    const query = buildQueryFromFilter(entry.filter ?? {});
+    const filter = entry.filter ?? { tags: "", folders: "", yamlFilters: [] };
+    const query = buildQueryFromFilter(filter);
     const name = entry.label || query || "Series";
     const countMode = entry.countMode ?? "pages";
     const timeField = entry.timeField ?? "modified";
     const range = resolveTimeRange(normalizeTimeRange(entry.timeRange), presets);
     if (countMode === "tasks") {
-      const tasks = await dataSource.queryTasks(query);
+      const tasks = await queryTasksForFilters(dataSource, [filter]);
       const filtered = filterTasksByTime(tasks, timeField, range);
       results.push({ name, value: filtered.length });
     } else {
-      const pages = await dataSource.queryPages(query);
+      const pages = await queryPagesForFilters(dataSource, [filter]);
       const filtered = filterPagesByTime(pages, timeField, range);
       results.push({ name, value: filtered.length });
     }
