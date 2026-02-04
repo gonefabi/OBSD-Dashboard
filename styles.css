@@ -92,6 +92,35 @@
   overflow: auto;
 }
 
+.obsd-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  gap: 6px;
+}
+
+.obsd-stat-caption {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.obsd-stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--text-normal);
+  line-height: 1.1;
+}
+
+.obsd-stat-compare {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 .obsd-widget.is-editing .obsd-widget-config {
   flex: 1;
   max-height: none;

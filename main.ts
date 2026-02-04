@@ -4,6 +4,7 @@ import { createRoot, Root } from "react-dom/client";
 import { DashboardView, DashboardLayout } from "./src/ui/DashboardView";
 import { DashboardSettingsTab } from "./src/ui/settings/DashboardSettingsTab";
 import { cloneLayout, isDashboardLayout, normalizeLayout, resolveCollisions } from "./src/ui/layout/layoutUtils";
+import { DEFAULT_TIME_PRESETS, cloneTimePresets, normalizeTimePresets, TimePreset } from "./src/ui/timePresets";
 import { DataviewService } from "./src/services/DataviewService";
 import { IDataSource } from "./src/interfaces/IDataSource";
 
@@ -13,6 +14,7 @@ interface DashboardPluginData {
   layout: DashboardLayout;
   editable: boolean;
   openOnStartup: boolean;
+  timePresets: TimePreset[];
 }
 
 const DEFAULT_LAYOUT: DashboardLayout = {
@@ -51,6 +53,7 @@ const DEFAULT_DATA: DashboardPluginData = {
   layout: cloneLayout(DEFAULT_LAYOUT),
   editable: false,
   openOnStartup: false,
+  timePresets: cloneTimePresets(DEFAULT_TIME_PRESETS),
 };
 
 export default class DashboardPlugin extends Plugin {
@@ -129,6 +132,16 @@ export default class DashboardPlugin extends Plugin {
     await this.saveData(this.data);
   }
 
+  getTimePresets(): TimePreset[] {
+    return this.data.timePresets;
+  }
+
+  async setTimePresets(presets: TimePreset[]): Promise<void> {
+    this.data.timePresets = normalizeTimePresets(presets);
+    await this.saveData(this.data);
+    this.refreshViews();
+  }
+
   async activateView(): Promise<void> {
     const leaf = this.app.workspace.getLeaf(true);
     await leaf.setViewState({ type: VIEW_TYPE_DASHBOARD, active: true });
@@ -148,6 +161,7 @@ export default class DashboardPlugin extends Plugin {
       editable: typeof loaded.editable === "boolean" ? loaded.editable : fallback.editable,
       openOnStartup:
         typeof loaded.openOnStartup === "boolean" ? loaded.openOnStartup : fallback.openOnStartup,
+      timePresets: normalizeTimePresets(loaded.timePresets),
     };
   }
 
@@ -226,6 +240,7 @@ class DashboardItemView extends ItemView {
       React.createElement(DashboardView, {
         dataSource: this.plugin.getDataSource(),
         layout: this.plugin.getLayout(),
+        timePresets: this.plugin.getTimePresets(),
         editable: this.plugin.getEditable(),
         onLayoutChange: (layout: DashboardLayout) => this.plugin.setLayout(layout),
       })

@@ -13,10 +13,21 @@ import {
 } from "recharts";
 import { IDataSource, Page, Task } from "../interfaces/IDataSource";
 import { normalizeLayout, resolveCollisions } from "./layout/layoutUtils";
+import {
+  CUSTOM_RANGE_ID,
+  DEFAULT_TIME_PRESETS,
+  TimePreset,
+  isCalendarPreset,
+} from "./timePresets";
 
-export type WidgetType = "task-list" | "pie-chart" | "line-chart";
+export type WidgetType = "task-list" | "pie-chart" | "line-chart" | "stats";
 export type ChartDataMode = "group" | "series";
 export type ChartCountMode = "pages" | "tasks";
+export type StatsCountTarget = "files" | "tasks";
+export type TimeField = "created" | "modified";
+export type StatsCompareMode = "none" | "previous-period" | "fixed-period" | "filter";
+export type StatsCompareDisplay = "number" | "percent";
+export type StatsCompareBasis = "total" | "per-day";
 
 export interface WidgetBaseConfig {
   id: string;
@@ -36,24 +47,42 @@ export interface TaskListWidgetConfig extends WidgetBaseConfig {
   limit?: number;
 }
 
+export interface StatsWidgetConfig extends WidgetBaseConfig {
+  type: "stats";
+  countTarget?: StatsCountTarget;
+  filters?: QueryFilter[];
+  timeField?: TimeField;
+  timeRange?: TimeRangeConfig;
+  compareMode?: StatsCompareMode;
+  compareDisplay?: StatsCompareDisplay;
+  compareBasis?: StatsCompareBasis;
+  compareRange?: TimeRangeConfig;
+  compareFilters?: QueryFilter[];
+  compareLabel?: string;
+}
+
 export interface PieChartWidgetConfig extends WidgetBaseConfig {
   type: "pie-chart";
   query: string;
-  groupBy: "tag" | "folder" | string;
+  groupBy: "tag" | "folder" | "file" | string;
   limit?: number;
   dataMode?: ChartDataMode;
   series?: ChartSeriesConfig[];
   filter?: QueryFilter;
+  timeField?: TimeField;
+  timeRange?: TimeRangeConfig;
 }
 
 export interface LineChartWidgetConfig extends WidgetBaseConfig {
   type: "line-chart";
   query: string;
-  groupBy: "tag" | "folder" | string;
+  groupBy: "tag" | "folder" | "file" | string;
   limit?: number;
   dataMode?: ChartDataMode;
   series?: ChartSeriesConfig[];
   filter?: QueryFilter;
+  timeField?: TimeField;
+  timeRange?: TimeRangeConfig;
 }
 
 export interface ChartSeriesConfig {
@@ -61,6 +90,8 @@ export interface ChartSeriesConfig {
   label: string;
   filter?: QueryFilter;
   countMode?: ChartCountMode;
+  timeField?: TimeField;
+  timeRange?: TimeRangeConfig;
 }
 
 export interface QueryFilter {
@@ -68,8 +99,15 @@ export interface QueryFilter {
   folders?: string;
 }
 
+export interface TimeRangeConfig {
+  preset: string;
+  start?: string;
+  end?: string;
+}
+
 export type WidgetConfig =
   | TaskListWidgetConfig
+  | StatsWidgetConfig
   | PieChartWidgetConfig
   | LineChartWidgetConfig;
 
@@ -83,11 +121,13 @@ export interface DashboardLayout {
 export interface DashboardViewProps {
   dataSource: IDataSource;
   layout: DashboardLayout;
+  timePresets?: TimePreset[];
   editable?: boolean;
   onLayoutChange?: (layout: DashboardLayout) => void;
 }
 
 const DataSourceContext = React.createContext<IDataSource | null>(null);
+const TimePresetsContext = React.createContext<TimePreset[]>(DEFAULT_TIME_PRESETS);
 
 export const useDataSource = (): IDataSource => {
   const context = React.useContext(DataSourceContext);
@@ -95,6 +135,10 @@ export const useDataSource = (): IDataSource => {
     throw new Error("DataSourceContext is missing. Wrap components with DashboardView.");
   }
   return context;
+};
+
+export const useTimePresets = (): TimePreset[] => {
+  return React.useContext(TimePresetsContext);
 };
 
 type WidgetComponentProps<T extends WidgetConfig> = {
@@ -146,9 +190,11 @@ const CHART_COLORS = [
 export const DashboardView: React.FC<DashboardViewProps> = ({
   dataSource,
   layout,
+  timePresets,
   editable = false,
   onLayoutChange,
 }) => {
+  const presetList = timePresets && timePresets.length > 0 ? timePresets : DEFAULT_TIME_PRESETS;
   const [currentLayout, setCurrentLayout] = React.useState(layout);
   const [isInteracting, setIsInteracting] = React.useState(false);
   const [configOpenId, setConfigOpenId] = React.useState<string | null>(null);
@@ -233,6 +279,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           limit: 10,
         };
         widget = baseWidget;
+      } else if (type === "stats") {
+        const baseWidget: StatsWidgetConfig = {
+          id,
+          type,
+          title: "Stat",
+          x: 0,
+          y: maxY,
+          w: 2,
+          h: 2,
+          countTarget: "files",
+          filters: [{ tags: "", folders: "" }],
+          timeField: "modified",
+          timeRange: { preset: "all" },
+          compareMode: "none",
+          compareDisplay: "number",
+          compareBasis: "total",
+        };
+        widget = baseWidget;
       } else if (type === "line-chart") {
         widget = {
           id,
@@ -252,6 +316,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               label: "Series 1",
               filter: { tags: "", folders: "" },
               countMode: "pages",
+              timeField: "modified",
+              timeRange: { preset: "all" },
             },
           ],
           filter: { tags: "", folders: "" },
@@ -275,6 +341,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               label: "Series 1",
               filter: { tags: "", folders: "" },
               countMode: "pages",
+              timeField: "modified",
+              timeRange: { preset: "all" },
             },
           ],
           filter: { tags: "", folders: "" },
@@ -413,29 +481,31 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <DataSourceContext.Provider value={dataSource}>
-      <div className="obsd-dashboard-grid" style={gridStyle} ref={containerRef}>
-        {currentLayout.widgets.map((widget) => (
-          <WidgetFrame
-            key={widget.id}
-            config={widget}
-            editable={editable}
-            configOpen={configOpenId === widget.id}
-            onToggleConfig={() =>
-              setConfigOpenId((prev) => (prev === widget.id ? null : widget.id))
-            }
-            onUpdate={(updater) => updateWidget(widget.id, updater, true)}
-            onDragStart={onDragStart}
-            onResizeStart={onResizeStart}
-          />
-        ))}
-        {editable ? (
-          <AddWidgetTile
-            columns={currentLayout.columns}
-            row={addRow}
-            onAdd={addWidget}
-          />
-        ) : null}
-      </div>
+      <TimePresetsContext.Provider value={presetList}>
+        <div className="obsd-dashboard-grid" style={gridStyle} ref={containerRef}>
+          {currentLayout.widgets.map((widget) => (
+            <WidgetFrame
+              key={widget.id}
+              config={widget}
+              editable={editable}
+              configOpen={configOpenId === widget.id}
+              onToggleConfig={() =>
+                setConfigOpenId((prev) => (prev === widget.id ? null : widget.id))
+              }
+              onUpdate={(updater) => updateWidget(widget.id, updater, true)}
+              onDragStart={onDragStart}
+              onResizeStart={onResizeStart}
+            />
+          ))}
+          {editable ? (
+            <AddWidgetTile
+              columns={currentLayout.columns}
+              row={addRow}
+              onAdd={addWidget}
+            />
+          ) : null}
+        </div>
+      </TimePresetsContext.Provider>
     </DataSourceContext.Provider>
   );
 };
@@ -532,10 +602,114 @@ const WidgetFrame: React.FC<{
   );
 };
 
+type TimeRangeEditorProps = {
+  timeField?: TimeField;
+  timeRange: TimeRangeConfig;
+  onChange: (next: { timeField?: TimeField; timeRange: TimeRangeConfig }) => void;
+  showField?: boolean;
+  rangeLabel?: string;
+};
+
+const TimeRangeEditor: React.FC<TimeRangeEditorProps> = ({
+  timeField,
+  timeRange,
+  onChange,
+  showField = true,
+  rangeLabel = "Time range",
+}) => {
+  const timePresets = useTimePresets();
+  const presets = timePresets.length > 0 ? timePresets : DEFAULT_TIME_PRESETS;
+  const presetId = timeRange.preset ?? "all";
+  const fieldValue = timeField ?? "modified";
+  const hasPreset = presets.some((preset) => preset.id === presetId);
+  const selectablePresets = hasPreset
+    ? presets
+    : [{ id: presetId, label: `Unknown (${presetId})`, type: "all" as const }, ...presets];
+
+  const updateRange = (nextPreset: string) => {
+    onChange({
+      timeField: fieldValue,
+      timeRange: {
+        preset: nextPreset,
+        start: nextPreset === CUSTOM_RANGE_ID ? timeRange.start : undefined,
+        end: nextPreset === CUSTOM_RANGE_ID ? timeRange.end : undefined,
+      },
+    });
+  };
+
+  const updateDate = (key: "start" | "end", value: string) => {
+    onChange({
+      timeField: fieldValue,
+      timeRange: {
+        ...timeRange,
+        preset: CUSTOM_RANGE_ID,
+        [key]: value || undefined,
+      },
+    });
+  };
+
+  return (
+    <>
+      {showField ? (
+        <div className="obsd-widget-config-row">
+          <label>Time field</label>
+          <select
+            value={fieldValue}
+            onChange={(event) => {
+              const nextField = event.target.value === "created" ? "created" : "modified";
+              onChange({ timeField: nextField, timeRange });
+            }}
+          >
+            <option value="modified">Modified</option>
+            <option value="created">Created</option>
+          </select>
+        </div>
+      ) : null}
+      <div className="obsd-widget-config-row">
+        <label>{rangeLabel}</label>
+        <select
+          value={presetId}
+          onChange={(event) => {
+            updateRange(event.target.value);
+          }}
+        >
+          {selectablePresets.map((preset) => (
+            <option key={preset.id} value={preset.id}>
+              {preset.label}
+            </option>
+          ))}
+          <option value={CUSTOM_RANGE_ID}>Custom range</option>
+        </select>
+      </div>
+      {presetId === CUSTOM_RANGE_ID ? (
+        <>
+          <div className="obsd-widget-config-row">
+            <label>Start date</label>
+            <input
+              type="date"
+              value={timeRange.start ?? ""}
+              onChange={(event) => updateDate("start", event.target.value)}
+            />
+          </div>
+          <div className="obsd-widget-config-row">
+            <label>End date</label>
+            <input
+              type="date"
+              value={timeRange.end ?? ""}
+              onChange={(event) => updateDate("end", event.target.value)}
+            />
+          </div>
+        </>
+      ) : null}
+    </>
+  );
+};
+
 const WidgetConfigPanel: React.FC<{
   config: WidgetConfig;
   onUpdate: (updater: (widget: WidgetConfig) => WidgetConfig) => void;
 }> = ({ config, onUpdate }) => {
+  const timePresets = useTimePresets();
   const sharedFields = (
     <div className="obsd-widget-config-row">
       <label>Title</label>
@@ -664,10 +838,319 @@ const WidgetConfigPanel: React.FC<{
     );
   }
 
+  if (config.type === "stats") {
+    const filters = ensureStatFilters(config.filters);
+    const compareFilters = ensureStatFilters(config.compareFilters);
+    const countTarget = config.countTarget ?? "files";
+    const timeField = config.timeField ?? "modified";
+    const timeRange = normalizeTimeRange(config.timeRange);
+    const compareMode = config.compareMode ?? "none";
+    const compareDisplay = config.compareDisplay ?? "number";
+    const compareBasis = config.compareBasis ?? "total";
+    const compareRange = normalizeTimeRange(config.compareRange);
+    const effectiveQuery = buildQueryFromFilters(filters);
+    const compareQuery = buildQueryFromFilters(compareFilters);
+    const hasBoundedRange = rangeHasBounds(resolveTimeRange(timeRange, timePresets));
+
+    const updateFilters = (next: QueryFilter[]) => {
+      const nextFilters = next.length > 0 ? next : [{ tags: "", folders: "" }];
+      onUpdate((widget) => {
+        if (widget.type !== "stats") return widget;
+        return {
+          ...widget,
+          filters: nextFilters,
+        };
+      });
+    };
+
+    const updateCompareFilters = (next: QueryFilter[]) => {
+      const nextFilters = next.length > 0 ? next : [{ tags: "", folders: "" }];
+      onUpdate((widget) => {
+        if (widget.type !== "stats") return widget;
+        return {
+          ...widget,
+          compareFilters: nextFilters,
+        };
+      });
+    };
+
+    return (
+      <div className="obsd-widget-config">
+        {sharedFields}
+        <div className="obsd-widget-config-row">
+          <label>Count target</label>
+          <select
+            value={countTarget}
+            onChange={(event) => {
+              const value = event.target.value === "tasks" ? "tasks" : "files";
+              onUpdate((widget) => {
+                if (widget.type !== "stats") return widget;
+                return {
+                  ...widget,
+                  countTarget: value,
+                };
+              });
+            }}
+          >
+            <option value="files">Files</option>
+            <option value="tasks">Tasks</option>
+          </select>
+        </div>
+        <div className="obsd-widget-source">
+          <div className="obsd-widget-config-note">
+            Filters combine with OR. Inside a filter, folders AND tags are combined.
+          </div>
+          {filters.map((filter, index) => (
+            <div className="obsd-widget-series" key={`stat-filter-${index}`}>
+              <div className="obsd-widget-config-row">
+                <label>{`Filter ${index + 1} tags`}</label>
+                <input
+                  type="text"
+                  value={filter.tags ?? ""}
+                  placeholder="project, urgent"
+                  onChange={(event) => {
+                    const next = [...filters];
+                    next[index] = { ...filter, tags: event.target.value };
+                    updateFilters(next);
+                  }}
+                />
+              </div>
+              <div className="obsd-widget-config-row">
+                <label>{`Filter ${index + 1} folders`}</label>
+                <input
+                  type="text"
+                  value={filter.folders ?? ""}
+                  placeholder="Projects/2026"
+                  onChange={(event) => {
+                    const next = [...filters];
+                    next[index] = { ...filter, folders: event.target.value };
+                    updateFilters(next);
+                  }}
+                />
+              </div>
+              {filters.length > 1 ? (
+                <div className="obsd-widget-query-actions">
+                  <button
+                    type="button"
+                    className="obsd-widget-toggle"
+                    onClick={() => {
+                      const next = filters.filter((_, i) => i !== index);
+                      updateFilters(next);
+                    }}
+                  >
+                    Remove filter
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ))}
+          <div className="obsd-widget-query-actions">
+            <button
+              type="button"
+              className="obsd-widget-toggle"
+              onClick={() => {
+                updateFilters([...filters, { tags: "", folders: "" }]);
+              }}
+            >
+              + Add filter
+            </button>
+          </div>
+          <div className="obsd-widget-config-note">Effective filter: {effectiveQuery}</div>
+        </div>
+        <TimeRangeEditor
+          timeField={timeField}
+          timeRange={timeRange}
+          onChange={({ timeField: nextField, timeRange: nextRange }) => {
+            onUpdate((widget) => {
+              if (widget.type !== "stats") return widget;
+              return {
+                ...widget,
+                timeField: nextField ?? "modified",
+                timeRange: nextRange,
+              };
+            });
+          }}
+        />
+        <div className="obsd-widget-config-row">
+          <label>Compare</label>
+          <select
+            value={compareMode}
+            onChange={(event) => {
+              const value = event.target.value as StatsCompareMode;
+              onUpdate((widget) => {
+                if (widget.type !== "stats") return widget;
+                return {
+                  ...widget,
+                  compareMode: value,
+                };
+              });
+            }}
+          >
+            <option value="none">None</option>
+            <option value="previous-period">Previous period</option>
+            <option value="fixed-period">Fixed period</option>
+            <option value="filter">Compare filters</option>
+          </select>
+        </div>
+        {compareMode !== "none" ? (
+          <>
+            <div className="obsd-widget-config-row">
+              <label>Compare display</label>
+              <select
+                value={compareDisplay}
+                onChange={(event) => {
+                  const value = event.target.value as StatsCompareDisplay;
+                  onUpdate((widget) => {
+                    if (widget.type !== "stats") return widget;
+                    return {
+                      ...widget,
+                      compareDisplay: value,
+                    };
+                  });
+                }}
+              >
+                <option value="number">Number</option>
+                <option value="percent">Percent</option>
+              </select>
+            </div>
+            <div className="obsd-widget-config-row">
+              <label>Compare basis</label>
+              <select
+                value={compareBasis}
+                onChange={(event) => {
+                  const value = event.target.value as StatsCompareBasis;
+                  onUpdate((widget) => {
+                    if (widget.type !== "stats") return widget;
+                    return {
+                      ...widget,
+                      compareBasis: value,
+                    };
+                  });
+                }}
+              >
+                <option value="total">Total</option>
+                <option value="per-day">Per-day average</option>
+                </select>
+            </div>
+            <div className="obsd-widget-config-row">
+              <label>Delta label</label>
+              <input
+                type="text"
+                value={config.compareLabel ?? "Delta"}
+                placeholder="Delta"
+                onChange={(event) => {
+                  const value = event.target.value;
+                  onUpdate((widget) => {
+                    if (widget.type !== "stats") return widget;
+                    return {
+                      ...widget,
+                      compareLabel: value,
+                    };
+                  });
+                }}
+              />
+            </div>
+          </>
+        ) : null}
+        {compareMode === "previous-period" && !hasBoundedRange ? (
+          <div className="obsd-widget-config-note">
+            Set a time range to compare against the previous period.
+          </div>
+        ) : null}
+        {compareBasis === "per-day" && !hasBoundedRange ? (
+          <div className="obsd-widget-config-note">
+            Per-day averages require a bounded time range.
+          </div>
+        ) : null}
+        {compareMode === "fixed-period" ? (
+          <TimeRangeEditor
+            timeRange={compareRange}
+            onChange={({ timeRange: nextRange }) => {
+              onUpdate((widget) => {
+                if (widget.type !== "stats") return widget;
+                return {
+                  ...widget,
+                  compareRange: nextRange,
+                };
+              });
+            }}
+            showField={false}
+            rangeLabel="Compare range"
+          />
+        ) : null}
+        {compareMode === "filter" ? (
+          <div className="obsd-widget-source">
+            <div className="obsd-widget-config-note">
+              Compare filters use the same time range as the main value.
+            </div>
+            {compareFilters.map((filter, index) => (
+              <div className="obsd-widget-series" key={`compare-filter-${index}`}>
+                <div className="obsd-widget-config-row">
+                  <label>{`Compare ${index + 1} tags`}</label>
+                  <input
+                    type="text"
+                    value={filter.tags ?? ""}
+                    placeholder="project, urgent"
+                    onChange={(event) => {
+                      const next = [...compareFilters];
+                      next[index] = { ...filter, tags: event.target.value };
+                      updateCompareFilters(next);
+                    }}
+                  />
+                </div>
+                <div className="obsd-widget-config-row">
+                  <label>{`Compare ${index + 1} folders`}</label>
+                  <input
+                    type="text"
+                    value={filter.folders ?? ""}
+                    placeholder="Projects/2026"
+                    onChange={(event) => {
+                      const next = [...compareFilters];
+                      next[index] = { ...filter, folders: event.target.value };
+                      updateCompareFilters(next);
+                    }}
+                  />
+                </div>
+                {compareFilters.length > 1 ? (
+                  <div className="obsd-widget-query-actions">
+                    <button
+                      type="button"
+                      className="obsd-widget-toggle"
+                      onClick={() => {
+                        const next = compareFilters.filter((_, i) => i !== index);
+                        updateCompareFilters(next);
+                      }}
+                    >
+                      Remove filter
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ))}
+            <div className="obsd-widget-query-actions">
+              <button
+                type="button"
+                className="obsd-widget-toggle"
+                onClick={() => {
+                  updateCompareFilters([...compareFilters, { tags: "", folders: "" }]);
+                }}
+              >
+                + Add compare filter
+              </button>
+            </div>
+            <div className="obsd-widget-config-note">Compare filter: {compareQuery}</div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   const chartConfig = config as PieChartWidgetConfig | LineChartWidgetConfig;
 
   const dataMode = getChartDataMode(chartConfig);
   const series = ensureChartSeries(chartConfig);
+  const timeField = chartConfig.timeField ?? "modified";
+  const timeRange = normalizeTimeRange(chartConfig.timeRange);
 
   return (
     <div className="obsd-widget-config">
@@ -699,6 +1182,20 @@ const WidgetConfigPanel: React.FC<{
 
       {dataMode === "group" ? (
         <>
+          <TimeRangeEditor
+            timeField={timeField}
+            timeRange={timeRange}
+            onChange={({ timeField: nextField, timeRange: nextRange }) => {
+              onUpdate((widget) => {
+                if (widget.type !== "pie-chart" && widget.type !== "line-chart") return widget;
+                return {
+                  ...widget,
+                  timeField: nextField ?? "modified",
+                  timeRange: nextRange,
+                };
+              });
+            }}
+          />
           <div className="obsd-widget-config-row">
             <label>Filter tags</label>
             <input
@@ -837,6 +1334,20 @@ const WidgetConfigPanel: React.FC<{
                   }}
                 />
               </div>
+              <TimeRangeEditor
+                timeField={entry.timeField ?? "modified"}
+                timeRange={normalizeTimeRange(entry.timeRange)}
+                onChange={({ timeField: nextField, timeRange: nextRange }) => {
+                  const next = [...series];
+                  next[index] = {
+                    ...entry,
+                    timeField: nextField ?? "modified",
+                    timeRange: nextRange,
+                  };
+                  onUpdate((widget) => updateChartSeries(widget, next));
+                }}
+                rangeLabel="Series time range"
+              />
               {series.length > 1 ? (
                 <div className="obsd-widget-query-actions">
                   <button
@@ -865,6 +1376,8 @@ const WidgetConfigPanel: React.FC<{
                     label: `Series ${series.length + 1}`,
                     filter: { tags: "", folders: "" },
                     countMode: "pages",
+                    timeField: "modified",
+                    timeRange: { preset: "all" },
                   },
                 ];
                 onUpdate((widget) => updateChartSeries(widget, next));
@@ -972,6 +1485,16 @@ const AddWidgetMenu: React.FC<{ onSelect: (type: WidgetType) => void }> = ({
           Task list
         </button>
       </div>
+      <div className="obsd-add-menu-section">
+        <div className="obsd-add-menu-title">Stats</div>
+        <button
+          type="button"
+          className="obsd-add-menu-item"
+          onClick={() => onSelect("stats")}
+        >
+          Stat number
+        </button>
+      </div>
     </div>
   );
 };
@@ -1061,10 +1584,153 @@ const TaskListWidget: React.FC<WidgetComponentProps<TaskListWidgetConfig>> = ({
   );
 };
 
+const StatsWidget: React.FC<WidgetComponentProps<StatsWidgetConfig>> = ({
+  config,
+}) => {
+  const dataSource = useDataSource();
+  const timePresets = useTimePresets();
+  const [primaryValue, setPrimaryValue] = React.useState<number | null>(null);
+  const [compareValue, setCompareValue] = React.useState<number | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const filters = ensureStatFilters(config.filters);
+  const compareFilters = ensureStatFilters(config.compareFilters);
+  const query = buildQueryFromFilters(filters);
+  const compareQuery = buildQueryFromFilters(compareFilters);
+  const countTarget = config.countTarget ?? "files";
+  const timeField = config.timeField ?? "modified";
+  const timeRange = normalizeTimeRange(config.timeRange);
+  const compareRange = normalizeTimeRange(config.compareRange);
+  const compareMode = config.compareMode ?? "none";
+  const compareDisplay = config.compareDisplay ?? "number";
+  const compareBasis = config.compareBasis ?? "total";
+  const compareLabel = (config.compareLabel ?? "Delta").trim();
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const resolvedRange = resolveTimeRange(timeRange, timePresets);
+        const baseResult = await countByTarget(
+          dataSource,
+          countTarget,
+          query,
+          timeField,
+          resolvedRange
+        );
+        const baseMetric = applyComparisonBasis(baseResult, compareBasis);
+
+        let compareMetric: number | null = null;
+        if (compareMode === "previous-period") {
+          const previous = derivePreviousRange(resolvedRange);
+          if (previous) {
+            const compareResult = await countByTarget(
+              dataSource,
+              countTarget,
+              query,
+              timeField,
+              previous
+            );
+            compareMetric = applyComparisonBasis(compareResult, compareBasis);
+          }
+        } else if (compareMode === "fixed-period") {
+          const fixedRange = resolveTimeRange(compareRange, timePresets);
+          const compareResult = await countByTarget(
+            dataSource,
+            countTarget,
+            query,
+            timeField,
+            fixedRange
+          );
+          compareMetric = applyComparisonBasis(compareResult, compareBasis);
+        } else if (compareMode === "filter") {
+          const compareResult = await countByTarget(
+            dataSource,
+            countTarget,
+            compareQuery,
+            timeField,
+            resolvedRange
+          );
+          compareMetric = applyComparisonBasis(compareResult, compareBasis);
+        }
+
+        if (!cancelled) {
+          setPrimaryValue(baseMetric);
+          setCompareValue(compareMetric);
+        }
+      } catch {
+        if (!cancelled) setError("Failed to load stats");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    dataSource,
+    countTarget,
+    query,
+    compareQuery,
+    timeField,
+    timeRange,
+    compareRange,
+    compareMode,
+    compareBasis,
+    timePresets,
+  ]);
+
+  if (loading) return <div>Loading stats...</div>;
+  if (error) return <div>{error}</div>;
+  if (primaryValue === null) return <div>No data.</div>;
+
+  const baseDecimals = compareBasis === "per-day" ? 1 : 0;
+  const formattedPrimary = formatNumber(primaryValue, baseDecimals);
+
+  let deltaText: string | null = null;
+  if (compareValue !== null) {
+    if (compareDisplay === "percent") {
+      if (compareValue === 0) {
+        deltaText = compareLabel ? `${compareLabel} n/a` : "n/a";
+      } else {
+        const deltaPercent = ((primaryValue - compareValue) / compareValue) * 100;
+        deltaText = `${compareLabel ? `${compareLabel} ` : ""}${formatSigned(
+          deltaPercent,
+          1
+        )}%`;
+      }
+    } else {
+      const delta = primaryValue - compareValue;
+      deltaText = `${compareLabel ? `${compareLabel} ` : ""}${formatSigned(
+        delta,
+        baseDecimals
+      )}`;
+    }
+  }
+
+  return (
+    <div className="obsd-stat">
+      {compareBasis === "per-day" ? (
+        <div className="obsd-stat-caption">Avg / day</div>
+      ) : null}
+      <div className="obsd-stat-value">{formattedPrimary}</div>
+      {deltaText ? <div className="obsd-stat-compare">{deltaText}</div> : null}
+    </div>
+  );
+};
+
 const PieChartWidget: React.FC<WidgetComponentProps<PieChartWidgetConfig>> = ({
   config,
 }) => {
   const dataSource = useDataSource();
+  const timePresets = useTimePresets();
   const [data, setData] = React.useState<Array<{ name: string; value: number }>>(
     []
   );
@@ -1081,15 +1747,21 @@ const PieChartWidget: React.FC<WidgetComponentProps<PieChartWidgetConfig>> = ({
       try {
         const dataMode = getChartDataMode(config);
         if (dataMode === "group") {
+          const timeField = config.timeField ?? "modified";
+          const timeRange = resolveTimeRange(
+            normalizeTimeRange(config.timeRange),
+            timePresets
+          );
           const query = buildQueryFromFilter(
             config.filter ?? deriveFilterFromLegacyQuery(config.query)
           );
           const pages = await dataSource.queryPages(query);
-          const grouped = groupPages(pages, config.groupBy, config.limit);
+          const filteredPages = filterPagesByTime(pages, timeField, timeRange);
+          const grouped = groupPages(filteredPages, config.groupBy, config.limit);
           if (!cancelled) setData(grouped);
         } else {
           const series = ensureChartSeries(config);
-          const seriesData = await buildSeriesCounts(dataSource, series);
+          const seriesData = await buildSeriesCounts(dataSource, series, timePresets);
           if (!cancelled) setData(seriesData);
         }
       } catch {
@@ -1103,7 +1775,18 @@ const PieChartWidget: React.FC<WidgetComponentProps<PieChartWidgetConfig>> = ({
     return () => {
       cancelled = true;
     };
-  }, [dataSource, config.query, config.filter, config.groupBy, config.limit, config.dataMode, config.series]);
+  }, [
+    dataSource,
+    config.query,
+    config.filter,
+    config.groupBy,
+    config.limit,
+    config.dataMode,
+    config.series,
+    config.timeField,
+    config.timeRange,
+    timePresets,
+  ]);
 
   if (loading) return <div>Loading chart...</div>;
   if (error) return <div>{error}</div>;
@@ -1155,6 +1838,7 @@ const LineChartWidget: React.FC<WidgetComponentProps<LineChartWidgetConfig>> = (
   config,
 }) => {
   const dataSource = useDataSource();
+  const timePresets = useTimePresets();
   const [data, setData] = React.useState<Array<{ name: string; value: number }>>(
     []
   );
@@ -1171,15 +1855,21 @@ const LineChartWidget: React.FC<WidgetComponentProps<LineChartWidgetConfig>> = (
       try {
         const dataMode = getChartDataMode(config);
         if (dataMode === "group") {
+          const timeField = config.timeField ?? "modified";
+          const timeRange = resolveTimeRange(
+            normalizeTimeRange(config.timeRange),
+            timePresets
+          );
           const query = buildQueryFromFilter(
             config.filter ?? deriveFilterFromLegacyQuery(config.query)
           );
           const pages = await dataSource.queryPages(query);
-          const grouped = groupPages(pages, config.groupBy, config.limit);
+          const filteredPages = filterPagesByTime(pages, timeField, timeRange);
+          const grouped = groupPages(filteredPages, config.groupBy, config.limit);
           if (!cancelled) setData(grouped);
         } else {
           const series = ensureChartSeries(config);
-          const seriesData = await buildSeriesCounts(dataSource, series);
+          const seriesData = await buildSeriesCounts(dataSource, series, timePresets);
           if (!cancelled) setData(seriesData);
         }
       } catch {
@@ -1193,7 +1883,18 @@ const LineChartWidget: React.FC<WidgetComponentProps<LineChartWidgetConfig>> = (
     return () => {
       cancelled = true;
     };
-  }, [dataSource, config.query, config.filter, config.groupBy, config.limit, config.dataMode, config.series]);
+  }, [
+    dataSource,
+    config.query,
+    config.filter,
+    config.groupBy,
+    config.limit,
+    config.dataMode,
+    config.series,
+    config.timeField,
+    config.timeRange,
+    timePresets,
+  ]);
 
   if (loading) return <div>Loading chart...</div>;
   if (error) return <div>{error}</div>;
@@ -1221,6 +1922,7 @@ const LineChartWidget: React.FC<WidgetComponentProps<LineChartWidgetConfig>> = (
 
 const WidgetRegistry: Record<WidgetType, React.FC<WidgetComponentProps<any>>> = {
   "task-list": TaskListWidget,
+  stats: StatsWidget,
   "pie-chart": PieChartWidget,
   "line-chart": LineChartWidget,
 };
@@ -1299,6 +2001,163 @@ function parseTags(value: string): string[] {
     .filter((tag) => tag.length > 0);
 }
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+type ResolvedTimeRange = {
+  start?: Date;
+  end?: Date;
+  days?: number;
+};
+
+function normalizeTimeRange(range?: TimeRangeConfig): TimeRangeConfig {
+  if (!range) return { preset: "all" };
+  return {
+    preset: range.preset ?? "all",
+    start: range.start,
+    end: range.end,
+  };
+}
+
+function resolveTimeRange(
+  range: TimeRangeConfig,
+  presets: TimePreset[],
+  now = new Date()
+): ResolvedTimeRange {
+  if (!range) return {};
+  const presetId = range.preset ?? "all";
+
+  if (presetId === CUSTOM_RANGE_ID) {
+    const start = parseDateInput(range.start, false);
+    const end = parseDateInput(range.end, true);
+    return finalizeRange(start, end);
+  }
+
+  const preset = presets.find((entry) => entry.id === presetId);
+  if (!preset || preset.type === "all") return {};
+
+  if (preset.type === "relative") {
+    const todayStart = startOfDay(now);
+    const start =
+      typeof preset.startOffsetDays === "number"
+        ? addDays(todayStart, preset.startOffsetDays)
+        : undefined;
+    const end =
+      typeof preset.endOffsetDays === "number"
+        ? endOfDay(addDays(todayStart, preset.endOffsetDays))
+        : undefined;
+    return finalizeRange(start, end);
+  }
+
+  if (preset.type === "calendar" && preset.calendar && isCalendarPreset(preset.calendar)) {
+    return resolveCalendarRange(preset.calendar, now);
+  }
+
+  return {};
+}
+
+function derivePreviousRange(range: ResolvedTimeRange): ResolvedTimeRange | null {
+  if (!range.start || !range.end || !range.days) return null;
+  const previousEnd = new Date(range.start.getTime() - 1);
+  const previousStart = addDays(startOfDay(previousEnd), -(range.days - 1));
+  return {
+    start: previousStart,
+    end: endOfDay(previousEnd),
+    days: range.days,
+  };
+}
+
+function rangeHasBounds(range: ResolvedTimeRange): boolean {
+  return Boolean(range.start && range.end);
+}
+
+function parseDateInput(value?: string, endOfDayFlag = false): Date | undefined {
+  if (!value) return undefined;
+  const parts = value.split("-").map(Number);
+  if (parts.length !== 3 || parts.some((part) => Number.isNaN(part))) return undefined;
+  const [year, month, day] = parts;
+  const date = new Date(year, month - 1, day);
+  return endOfDayFlag ? endOfDay(date) : startOfDay(date);
+}
+
+function finalizeRange(start?: Date, end?: Date): ResolvedTimeRange {
+  if (!start && !end) return {};
+  const normalizedStart = start ? startOfDay(start) : undefined;
+  const normalizedEnd = end ? endOfDay(end) : undefined;
+  const days =
+    normalizedStart && normalizedEnd
+      ? Math.max(
+          1,
+          Math.floor((normalizedEnd.getTime() - normalizedStart.getTime()) / MS_PER_DAY) + 1
+        )
+      : undefined;
+  return { start: normalizedStart, end: normalizedEnd, days };
+}
+
+function resolveCalendarRange(kind: string, now: Date): ResolvedTimeRange {
+  if (kind === "this-week") {
+    return finalizeRange(startOfWeek(now), endOfDay(now));
+  }
+  if (kind === "last-week") {
+    const currentWeekStart = startOfWeek(now);
+    const lastWeekEnd = addDays(currentWeekStart, -1);
+    const lastWeekStart = addDays(currentWeekStart, -7);
+    return finalizeRange(startOfDay(lastWeekStart), endOfDay(lastWeekEnd));
+  }
+  if (kind === "this-month") {
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    return finalizeRange(startOfDay(monthStart), endOfDay(now));
+  }
+  if (kind === "last-month") {
+    const firstOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastMonthEnd = addDays(firstOfThisMonth, -1);
+    const lastMonthStart = new Date(lastMonthEnd.getFullYear(), lastMonthEnd.getMonth(), 1);
+    return finalizeRange(startOfDay(lastMonthStart), endOfDay(lastMonthEnd));
+  }
+  if (kind === "this-year") {
+    const yearStart = new Date(now.getFullYear(), 0, 1);
+    return finalizeRange(startOfDay(yearStart), endOfDay(now));
+  }
+  if (kind === "last-year") {
+    const yearStart = new Date(now.getFullYear() - 1, 0, 1);
+    const yearEnd = new Date(now.getFullYear() - 1, 11, 31);
+    return finalizeRange(startOfDay(yearStart), endOfDay(yearEnd));
+  }
+  return {};
+}
+
+function parseDateValue(value?: string): Date | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
+
+function startOfDay(date: Date): Date {
+  const next = new Date(date);
+  next.setHours(0, 0, 0, 0);
+  return next;
+}
+
+function endOfDay(date: Date): Date {
+  const next = new Date(date);
+  next.setHours(23, 59, 59, 999);
+  return next;
+}
+
+function startOfWeek(date: Date): Date {
+  const next = new Date(date);
+  const day = next.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  next.setDate(next.getDate() + diff);
+  return startOfDay(next);
+}
+
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
 function deriveFilterFromLegacyQuery(query: string): QueryFilter {
   if (!query) return { tags: "", folders: "" };
   const tagMatches = Array.from(query.matchAll(/#([A-Za-z0-9/_-]+)/g)).map(
@@ -1369,6 +2228,87 @@ function buildFoldersExpression(value: string): string {
   return items.length > 1 ? `(${items.join(" OR ")})` : items[0];
 }
 
+function ensureStatFilters(filters?: QueryFilter[]): QueryFilter[] {
+  if (Array.isArray(filters) && filters.length > 0) return filters;
+  return [{ tags: "", folders: "" }];
+}
+
+function filterPagesByTime(
+  pages: Page[],
+  field: TimeField,
+  range: ResolvedTimeRange
+): Page[] {
+  if (!range.start && !range.end) return pages;
+  return pages.filter((page) => {
+    const value = field === "created" ? page.ctime : page.mtime;
+    const date = parseDateValue(value);
+    return isWithinRange(date, range);
+  });
+}
+
+function filterTasksByTime(
+  tasks: Task[],
+  field: TimeField,
+  range: ResolvedTimeRange
+): Task[] {
+  if (!range.start && !range.end) return tasks;
+  return tasks.filter((task) => {
+    const value = field === "created" ? task.fileCtime : task.fileMtime;
+    const date = parseDateValue(value);
+    return isWithinRange(date, range);
+  });
+}
+
+function isWithinRange(date: Date | null, range: ResolvedTimeRange): boolean {
+  if (!range.start && !range.end) return true;
+  if (!date) return false;
+  if (range.start && date < range.start) return false;
+  if (range.end && date > range.end) return false;
+  return true;
+}
+
+type CountResult = {
+  count: number;
+  days?: number;
+};
+
+async function countByTarget(
+  dataSource: IDataSource,
+  target: StatsCountTarget,
+  query: string,
+  timeField: TimeField,
+  range: ResolvedTimeRange
+): Promise<CountResult> {
+  if (target === "tasks") {
+    const tasks = await dataSource.queryTasks(query);
+    const filtered = filterTasksByTime(tasks, timeField, range);
+    return { count: filtered.length, days: range.days };
+  }
+
+  const pages = await dataSource.queryPages(query);
+  const filtered = filterPagesByTime(pages, timeField, range);
+  return { count: filtered.length, days: range.days };
+}
+
+function applyComparisonBasis(result: CountResult, basis: StatsCompareBasis): number {
+  if (basis === "per-day" && result.days) {
+    return result.count / result.days;
+  }
+  return result.count;
+}
+
+function formatNumber(value: number, decimals = 0): string {
+  return new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(value);
+}
+
+function formatSigned(value: number, decimals = 0): string {
+  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
+  return `${sign}${formatNumber(Math.abs(value), decimals)}`;
+}
+
 function getChartDataMode(config: PieChartWidgetConfig | LineChartWidgetConfig): ChartDataMode {
   if (config.dataMode) return config.dataMode;
   if (Array.isArray(config.series) && config.series.length > 0) return "series";
@@ -1380,22 +2320,42 @@ function ensureChartSeries(
 ): ChartSeriesConfig[] {
   if (Array.isArray(config.series) && config.series.length > 0) {
     return config.series.map((entry) => {
-      if (entry.filter) return entry;
+      if (entry.filter && entry.timeRange) return entry;
       const legacy = entry as ChartSeriesConfig & {
         easyFilterType?: "all" | "tag" | "folder";
         easyFilterValue?: string;
         rawQuery?: string;
       };
       if (legacy.rawQuery) {
-        return { ...entry, filter: deriveFilterFromLegacyQuery(legacy.rawQuery) };
+        return {
+          ...entry,
+          filter: deriveFilterFromLegacyQuery(legacy.rawQuery),
+          timeField: entry.timeField ?? "modified",
+          timeRange: entry.timeRange ?? { preset: "all" },
+        };
       }
       if (legacy.easyFilterType && legacy.easyFilterType !== "all") {
         if (legacy.easyFilterType === "folder") {
-          return { ...entry, filter: { folders: legacy.easyFilterValue ?? "" } };
+          return {
+            ...entry,
+            filter: { folders: legacy.easyFilterValue ?? "" },
+            timeField: entry.timeField ?? "modified",
+            timeRange: entry.timeRange ?? { preset: "all" },
+          };
         }
-        return { ...entry, filter: { tags: legacy.easyFilterValue ?? "" } };
+        return {
+          ...entry,
+          filter: { tags: legacy.easyFilterValue ?? "" },
+          timeField: entry.timeField ?? "modified",
+          timeRange: entry.timeRange ?? { preset: "all" },
+        };
       }
-      return { ...entry, filter: { tags: "", folders: "" } };
+      return {
+        ...entry,
+        filter: entry.filter ?? { tags: "", folders: "" },
+        timeField: entry.timeField ?? "modified",
+        timeRange: entry.timeRange ?? { preset: "all" },
+      };
     });
   }
 
@@ -1406,6 +2366,8 @@ function ensureChartSeries(
       label: config.title ?? "Series 1",
       filter: legacyQuery ? deriveFilterFromLegacyQuery(legacyQuery) : { tags: "", folders: "" },
       countMode: "pages",
+      timeField: "modified",
+      timeRange: { preset: "all" },
     },
   ];
 }
@@ -1436,7 +2398,8 @@ function combineChartQueries(series: ChartSeriesConfig[]): string {
 
 async function buildSeriesCounts(
   dataSource: IDataSource,
-  series: ChartSeriesConfig[]
+  series: ChartSeriesConfig[],
+  presets: TimePreset[]
 ): Promise<Array<{ name: string; value: number }>> {
   const results: Array<{ name: string; value: number }> = [];
 
@@ -1444,12 +2407,16 @@ async function buildSeriesCounts(
     const query = buildQueryFromFilter(entry.filter ?? {});
     const name = entry.label || query || "Series";
     const countMode = entry.countMode ?? "pages";
+    const timeField = entry.timeField ?? "modified";
+    const range = resolveTimeRange(normalizeTimeRange(entry.timeRange), presets);
     if (countMode === "tasks") {
       const tasks = await dataSource.queryTasks(query);
-      results.push({ name, value: tasks.length });
+      const filtered = filterTasksByTime(tasks, timeField, range);
+      results.push({ name, value: filtered.length });
     } else {
       const pages = await dataSource.queryPages(query);
-      results.push({ name, value: pages.length });
+      const filtered = filterPagesByTime(pages, timeField, range);
+      results.push({ name, value: filtered.length });
     }
   }
 
