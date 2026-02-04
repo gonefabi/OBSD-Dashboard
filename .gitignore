@@ -5,3 +5,6 @@ main.js.map
 
 # Obsidian dev vaults (optional)
 .obsidian/
+
+# IDE
+.vscode/
