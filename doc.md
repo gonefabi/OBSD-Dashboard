@@ -33,13 +33,10 @@ No bundling/packing is needed beyond the build step.
 1. Click the **three dots** menu in the dashboard view.
 2. Select **Edit dashboard**.
 3. A dashed **+ Add widget** tile appears at the bottom.
-4. Use **Edit** on a widget to adjust its Dataview query.
+4. Use **Edit** on a widget to adjust its filters (tags/folders) or chart series.
 
 ## Open on startup
 Go to **Settings → Dashboard** and enable **Open dashboard on startup** if you want the view to open automatically when Obsidian starts.
-
-## Default task mode
-In **Settings → Dashboard**, set **Default task query mode** to choose whether new task widgets start in Easy (Tags) or Source (Raw) mode.
 
 ## Development workflow (optional)
 If you want live rebuilding:
