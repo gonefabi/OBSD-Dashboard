@@ -3,6 +3,7 @@ import type {
   PieChartWidgetConfig,
   LineChartWidgetConfig,
   StatsWidgetConfig,
+  StatusBarWidgetConfig,
   TaskListWidgetConfig,
   WidgetConfig,
 } from "../DashboardView";
@@ -98,6 +99,10 @@ const isWidgetConfig = (value: unknown): value is WidgetConfig => {
     return isStatsWidget(widget);
   }
 
+  if (widget.type === "status-bar") {
+    return isStatusBarWidget(widget);
+  }
+
   return false;
 };
 
@@ -120,6 +125,11 @@ const isLineChartWidget = (widget: WidgetConfig): widget is LineChartWidgetConfi
 const isStatsWidget = (widget: WidgetConfig): widget is StatsWidgetConfig => {
   const candidate = widget as StatsWidgetConfig;
   return candidate.type === "stats";
+};
+
+const isStatusBarWidget = (widget: WidgetConfig): widget is StatusBarWidgetConfig => {
+  const candidate = widget as StatusBarWidgetConfig;
+  return candidate.type === "status-bar";
 };
 
 const isNumber = (value: unknown): value is number =>

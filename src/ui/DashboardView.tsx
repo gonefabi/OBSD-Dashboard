@@ -24,7 +24,8 @@ export type WidgetType =
   | "task-list"
   | "pie-chart"
   | "line-chart"
-  | "stats";
+  | "stats"
+  | "status-bar";
 export type ChartDataMode = "group" | "series";
 export type ChartCountMode = "pages" | "tasks";
 export type StatsCountTarget = "files" | "tasks";
@@ -63,6 +64,15 @@ export interface StatsWidgetConfig extends WidgetBaseConfig {
   compareRange?: TimeRangeConfig;
   compareFilters?: QueryFilter[];
   compareLabel?: string;
+}
+
+export interface StatusBarWidgetConfig extends WidgetBaseConfig {
+  type: "status-bar";
+  countTarget?: StatsCountTarget;
+  filters?: QueryFilter[];
+  timeField?: TimeField;
+  timeRange?: TimeRangeConfig;
+  target?: number;
 }
 
 export interface PieChartWidgetConfig extends WidgetBaseConfig {
@@ -117,6 +127,7 @@ export interface TimeRangeConfig {
 
 export type WidgetConfig =
   | TaskListWidgetConfig
+  | StatusBarWidgetConfig
   | StatsWidgetConfig
   | PieChartWidgetConfig
   | LineChartWidgetConfig;
@@ -287,6 +298,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           filters: [{ tags: "", folders: "", yamlFilters: [] }],
           showCompleted: false,
           limit: 10,
+        };
+        widget = baseWidget;
+      } else if (type === "status-bar") {
+        const baseWidget: StatusBarWidgetConfig = {
+          id,
+          type,
+          title: "Progress",
+          x: 0,
+          y: maxY,
+          w: 2,
+          h: 2,
+          countTarget: "files",
+          filters: [{ tags: "", folders: "", yamlFilters: [] }],
+          timeField: "modified",
+          timeRange: { preset: "all" },
+          target: 10,
         };
         widget = baseWidget;
       } else if (type === "stats") {
@@ -1258,6 +1285,153 @@ const WidgetConfigPanel: React.FC<{
     );
   }
 
+  if (config.type === "status-bar") {
+    const filters = ensureStatFilters(config.filters);
+    const countTarget = config.countTarget ?? "files";
+    const timeField = config.timeField ?? "modified";
+    const timeRange = normalizeTimeRange(config.timeRange);
+    const target = typeof config.target === "number" ? config.target : undefined;
+    const effectiveQuery = buildQueryFromFilters(filters);
+
+    const updateFilters = (next: QueryFilter[]) => {
+      const nextFilters = next.length > 0 ? next : [{ tags: "", folders: "", yamlFilters: [] }];
+      onUpdate((widget) => {
+        if (widget.type !== "status-bar") return widget;
+        return {
+          ...widget,
+          filters: nextFilters,
+        };
+      });
+    };
+
+    return (
+      <div className="obsd-widget-config">
+        {sharedFields}
+        <div className="obsd-widget-config-row">
+          <label>Count target</label>
+          <select
+            value={countTarget}
+            onChange={(event) => {
+              const value = event.target.value === "tasks" ? "tasks" : "files";
+              onUpdate((widget) => {
+                if (widget.type !== "status-bar") return widget;
+                return {
+                  ...widget,
+                  countTarget: value,
+                };
+              });
+            }}
+          >
+            <option value="files">Files</option>
+            <option value="tasks">Tasks</option>
+          </select>
+        </div>
+        <div className="obsd-widget-source">
+          <div className="obsd-widget-config-note">
+            Filters combine with OR. Inside a filter, folders AND tags are combined.
+          </div>
+          {filters.map((filter, index) => (
+            <div className="obsd-widget-series" key={`status-filter-${index}`}>
+              <div className="obsd-widget-config-row">
+                <label>{`Filter ${index + 1} tags`}</label>
+                <input
+                  type="text"
+                  value={filter.tags ?? ""}
+                  placeholder="project, urgent"
+                  onChange={(event) => {
+                    const next = [...filters];
+                    next[index] = { ...filter, tags: event.target.value };
+                    updateFilters(next);
+                  }}
+                />
+              </div>
+              <div className="obsd-widget-config-row">
+                <label>{`Filter ${index + 1} folders`}</label>
+                <input
+                  type="text"
+                  value={filter.folders ?? ""}
+                  placeholder="Projects/2026"
+                  onChange={(event) => {
+                    const next = [...filters];
+                    next[index] = { ...filter, folders: event.target.value };
+                    updateFilters(next);
+                  }}
+                />
+              </div>
+              <YamlFilterEditor
+                yamlFilters={filter.yamlFilters ?? []}
+                labelPrefix={`Filter ${index + 1}`}
+                onChange={(yamlFilters) => {
+                  const next = [...filters];
+                  next[index] = { ...filter, yamlFilters };
+                  updateFilters(next);
+                }}
+              />
+              {filters.length > 1 ? (
+                <div className="obsd-widget-query-actions">
+                  <button
+                    type="button"
+                    className="obsd-widget-toggle"
+                    onClick={() => {
+                      const next = filters.filter((_, i) => i !== index);
+                      updateFilters(next);
+                    }}
+                  >
+                    Remove filter
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ))}
+          <div className="obsd-widget-query-actions">
+            <button
+              type="button"
+              className="obsd-widget-toggle"
+              onClick={() => {
+                updateFilters([...filters, { tags: "", folders: "", yamlFilters: [] }]);
+              }}
+            >
+              + Add filter
+            </button>
+          </div>
+          <div className="obsd-widget-config-note">Effective filter: {effectiveQuery}</div>
+        </div>
+        <TimeRangeEditor
+          timeField={timeField}
+          timeRange={timeRange}
+          onChange={({ timeField: nextField, timeRange: nextRange }) => {
+            onUpdate((widget) => {
+              if (widget.type !== "status-bar") return widget;
+              return {
+                ...widget,
+                timeField: nextField ?? "modified",
+                timeRange: nextRange,
+              };
+            });
+          }}
+        />
+        <div className="obsd-widget-config-row">
+          <label>Target</label>
+          <input
+            type="number"
+            value={typeof target === "number" ? String(target) : ""}
+            placeholder="14"
+            onChange={(event) => {
+              const value = toOptionalNumber(event.target.value);
+              onUpdate((widget) => {
+                if (widget.type !== "status-bar") return widget;
+                return {
+                  ...widget,
+                  target: value,
+                };
+              });
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
   const chartConfig = config as PieChartWidgetConfig | LineChartWidgetConfig;
 
   const dataMode = getChartDataMode(chartConfig);
@@ -1633,6 +1807,13 @@ const AddWidgetMenu: React.FC<{ onSelect: (type: WidgetType) => void }> = ({
         >
           Stat number
         </button>
+        <button
+          type="button"
+          className="obsd-add-menu-item"
+          onClick={() => onSelect("status-bar")}
+        >
+          Status bar
+        </button>
       </div>
     </div>
   );
@@ -1718,6 +1899,77 @@ const TaskListWidget: React.FC<WidgetComponentProps<TaskListWidgetConfig>> = ({
           </span>
         </label>
       ))}
+    </div>
+  );
+};
+
+const StatusBarWidget: React.FC<WidgetComponentProps<StatusBarWidgetConfig>> = ({
+  config,
+}) => {
+  const dataSource = useDataSource();
+  const timePresets = useTimePresets();
+  const [value, setValue] = React.useState<number | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const filters = ensureStatFilters(config.filters);
+  const countTarget = config.countTarget ?? "files";
+  const timeField = config.timeField ?? "modified";
+  const timeRange = normalizeTimeRange(config.timeRange);
+  const target = typeof config.target === "number" ? config.target : null;
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const resolvedRange = resolveTimeRange(timeRange, timePresets);
+        const result = await countByTarget(
+          dataSource,
+          countTarget,
+          filters,
+          timeField,
+          resolvedRange
+        );
+        if (!cancelled) setValue(result.count);
+      } catch {
+        if (!cancelled) setError("Failed to load status");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [dataSource, countTarget, filters, timeField, timeRange, timePresets]);
+
+  if (loading) return <div>Loading...</div>;
+  if (error) return <div>{error}</div>;
+  if (value === null) return <div>No data.</div>;
+
+  const targetValue = target ?? 0;
+  const ratio = targetValue > 0 ? Math.min(1, value / targetValue) : 0;
+  const percent = targetValue > 0 ? Math.round((value / targetValue) * 100) : 0;
+
+  return (
+    <div className="obsd-status">
+      <div className="obsd-status-value">
+        {targetValue > 0 ? `${value} / ${targetValue}` : String(value)}
+      </div>
+      <div className="obsd-status-bar">
+        <div
+          className="obsd-status-bar-fill"
+          style={{ width: `${ratio * 100}%` }}
+        />
+      </div>
+      {targetValue > 0 ? (
+        <div className="obsd-status-caption">{percent}%</div>
+      ) : null}
     </div>
   );
 };
@@ -2055,6 +2307,7 @@ const LineChartWidget: React.FC<WidgetComponentProps<LineChartWidgetConfig>> = (
 const WidgetRegistry: Record<WidgetType, React.FC<WidgetComponentProps<any>>> = {
   "task-list": TaskListWidget,
   stats: StatsWidget,
+  "status-bar": StatusBarWidget,
   "pie-chart": PieChartWidget,
   "line-chart": LineChartWidget,
 };
