@@ -152,21 +152,23 @@
 .obsd-status {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  align-items: center;
+  gap: clamp(4px, 1.2vh, 8px);
+  align-items: stretch;
   justify-content: center;
   height: 100%;
+  padding: 4px 0;
 }
 
 .obsd-status-value {
-  font-size: 20px;
+  font-size: clamp(12px, 2.4vh, 20px);
   font-weight: 600;
   color: var(--text-normal);
+  text-align: center;
 }
 
 .obsd-status-bar {
   width: 100%;
-  height: 10px;
+  height: clamp(6px, 1.2vh, 10px);
   border-radius: 999px;
   background: var(--background-modifier-border);
   overflow: hidden;
@@ -178,8 +180,9 @@
 }
 
 .obsd-status-caption {
-  font-size: 12px;
+  font-size: clamp(10px, 1.6vh, 12px);
   color: var(--text-muted);
+  text-align: center;
 }
 
 .obsd-widget.is-editing .obsd-widget-config {

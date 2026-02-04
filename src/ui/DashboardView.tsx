@@ -608,7 +608,10 @@ const WidgetFrame: React.FC<{
             touchAction: editable ? "none" : "auto",
           }}
         >
-          <span onPointerDown={editable ? (event) => onDragStart(event, config) : undefined}>
+          <span
+            onPointerDown={editable ? (event) => onDragStart(event, config) : undefined}
+            style={{ flex: 1, minWidth: 0 }}
+          >
             {headerLabel}
           </span>
           {editable ? (
