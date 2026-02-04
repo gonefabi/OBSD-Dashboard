@@ -14,19 +14,6 @@ export class DashboardSettingsTab extends PluginSettingTab {
     this.containerEl.empty();
 
     new Setting(this.containerEl)
-      .setName("Default task query mode")
-      .setDesc("Choose the default mode for new task widgets.")
-      .addDropdown((dropdown) => {
-        dropdown.addOption("tags", "Easy (Tags)");
-        dropdown.addOption("raw", "Source (Raw)");
-        dropdown.setValue(this.plugin.getDefaultTaskQueryMode());
-        dropdown.onChange(async (value) => {
-          const mode = value === "raw" ? "raw" : "tags";
-          await this.plugin.setDefaultTaskQueryMode(mode);
-        });
-      });
-
-    new Setting(this.containerEl)
       .setName("Open dashboard on startup")
       .setDesc("Automatically open the dashboard view when Obsidian starts.")
       .addToggle((toggle) => {

@@ -1,7 +1,7 @@
 import { ItemView, Menu, Plugin, WorkspaceLeaf } from "obsidian";
 import * as React from "react";
 import { createRoot, Root } from "react-dom/client";
-import { DashboardView, DashboardLayout, TaskQueryMode } from "./src/ui/DashboardView";
+import { DashboardView, DashboardLayout } from "./src/ui/DashboardView";
 import { DashboardSettingsTab } from "./src/ui/settings/DashboardSettingsTab";
 import { cloneLayout, isDashboardLayout, normalizeLayout, resolveCollisions } from "./src/ui/layout/layoutUtils";
 import { DataviewService } from "./src/services/DataviewService";
@@ -13,7 +13,6 @@ interface DashboardPluginData {
   layout: DashboardLayout;
   editable: boolean;
   openOnStartup: boolean;
-  defaultTaskQueryMode: TaskQueryMode;
 }
 
 const DEFAULT_LAYOUT: DashboardLayout = {
@@ -29,8 +28,7 @@ const DEFAULT_LAYOUT: DashboardLayout = {
       y: 0,
       w: 2,
       h: 3,
-      queryMode: "tags",
-      tagFilter: "",
+      filters: [{ tags: "", folders: "" }],
       showCompleted: false,
       limit: 10,
     },
@@ -53,7 +51,6 @@ const DEFAULT_DATA: DashboardPluginData = {
   layout: cloneLayout(DEFAULT_LAYOUT),
   editable: false,
   openOnStartup: false,
-  defaultTaskQueryMode: "tags",
 };
 
 export default class DashboardPlugin extends Plugin {
@@ -96,7 +93,7 @@ export default class DashboardPlugin extends Plugin {
   async setLayout(layout: DashboardLayout): Promise<void> {
     const normalized = normalizeLayout(layout);
     const resolved = resolveCollisions(normalized);
-    this.data.layout = this.applyTaskQueryDefaults(resolved, this.data.defaultTaskQueryMode);
+    this.data.layout = resolved;
     await this.saveData(this.data);
     this.refreshViews();
   }
@@ -132,17 +129,6 @@ export default class DashboardPlugin extends Plugin {
     await this.saveData(this.data);
   }
 
-  getDefaultTaskQueryMode(): TaskQueryMode {
-    return this.data.defaultTaskQueryMode;
-  }
-
-  async setDefaultTaskQueryMode(value: TaskQueryMode): Promise<void> {
-    this.data.defaultTaskQueryMode = value;
-    this.data.layout = this.applyTaskQueryDefaults(this.data.layout, value);
-    await this.saveData(this.data);
-    this.refreshViews();
-  }
-
   async activateView(): Promise<void> {
     const leaf = this.app.workspace.getLeaf(true);
     await leaf.setViewState({ type: VIEW_TYPE_DASHBOARD, active: true });
@@ -157,17 +143,11 @@ export default class DashboardPlugin extends Plugin {
 
     const base = resolveCollisions(normalizeLayout(loadedLayout));
 
-    const defaultTaskQueryMode =
-      loaded?.defaultTaskQueryMode === "raw" || loaded?.defaultTaskQueryMode === "tags"
-        ? loaded.defaultTaskQueryMode
-        : fallback.defaultTaskQueryMode;
-
     return {
-      layout: this.applyTaskQueryDefaults(base, defaultTaskQueryMode),
+      layout: base,
       editable: typeof loaded.editable === "boolean" ? loaded.editable : fallback.editable,
       openOnStartup:
         typeof loaded.openOnStartup === "boolean" ? loaded.openOnStartup : fallback.openOnStartup,
-      defaultTaskQueryMode,
     };
   }
 
@@ -178,28 +158,6 @@ export default class DashboardPlugin extends Plugin {
         view.refresh();
       }
     });
-  }
-
-  private applyTaskQueryDefaults(
-    layout: DashboardLayout,
-    mode: TaskQueryMode = "tags"
-  ): DashboardLayout {
-    const widgets = layout.widgets.map((widget) => {
-      if (widget.type !== "task-list") return widget;
-      if (widget.queryMode) return widget;
-      if (Array.isArray(widget.rawQueries) && widget.rawQueries.length > 0) {
-        return { ...widget, queryMode: "raw" } as typeof widget;
-      }
-      if (widget.rawQuery || widget.filter) {
-        return { ...widget, queryMode: "raw" } as typeof widget;
-      }
-      if (widget.tagFilter) {
-        return { ...widget, queryMode: "tags" } as typeof widget;
-      }
-      return { ...widget, queryMode: mode } as typeof widget;
-    });
-
-    return { ...layout, widgets };
   }
 }
 
@@ -269,7 +227,6 @@ class DashboardItemView extends ItemView {
         dataSource: this.plugin.getDataSource(),
         layout: this.plugin.getLayout(),
         editable: this.plugin.getEditable(),
-        defaultTaskQueryMode: this.plugin.getDefaultTaskQueryMode(),
         onLayoutChange: (layout: DashboardLayout) => this.plugin.setLayout(layout),
       })
     );

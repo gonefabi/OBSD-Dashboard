@@ -98,14 +98,8 @@ const isWidgetConfig = (value: unknown): value is WidgetConfig => {
 
 const isTaskListWidget = (widget: WidgetConfig): widget is TaskListWidgetConfig => {
   const candidate = widget as TaskListWidgetConfig;
-  return (
-    typeof candidate.filter === "string" ||
-    typeof candidate.rawQuery === "string" ||
-    (Array.isArray(candidate.rawQueries) && candidate.rawQueries.every((entry) => typeof entry === "string")) ||
-    typeof candidate.tagFilter === "string" ||
-    candidate.queryMode === "raw" ||
-    candidate.queryMode === "tags"
-  );
+  if (Array.isArray(candidate.filters)) return true;
+  return typeof candidate.filter === "string";
 };
 
 const isPieChartWidget = (widget: WidgetConfig): widget is PieChartWidgetConfig => {
