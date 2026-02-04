@@ -1,0 +1,9 @@
+{
+  "id": "obsd-dashboard",
+  "name": "Dashboard Plugin",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "Modular dashboard view with widget adapters.",
+  "author": "gonefabi",
+  "isDesktopOnly": false
+}

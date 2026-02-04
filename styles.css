@@ -1,0 +1,128 @@
+.obsd-dashboard-view {
+  height: 100%;
+  width: 100%;
+}
+
+.obsd-widget-edit {
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.obsd-widget-toggle {
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-muted);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.obsd-widget-toggle.is-active {
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  border-color: var(--interactive-accent);
+}
+
+.obsd-widget-config {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  margin-bottom: 8px;
+  border: 1px dashed var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-secondary);
+}
+
+.obsd-widget-source {
+  display: grid;
+  gap: 6px;
+}
+
+.obsd-widget-config-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.obsd-widget-config-row input[type="text"],
+.obsd-widget-config-row input[type="number"],
+.obsd-widget-config-row select {
+  width: 100%;
+}
+
+.obsd-widget-query-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.obsd-widget-query-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.obsd-widget-config-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: -2px;
+}
+
+.obsd-add-tile {
+  position: relative;
+}
+
+.obsd-add-button {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.obsd-add-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  padding: 10px;
+  min-width: 220px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  z-index: 10;
+}
+
+.obsd-add-menu-section {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.obsd-add-menu-section:last-child {
+  margin-bottom: 0;
+}
+
+.obsd-add-menu-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.obsd-add-menu-item {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  text-align: left;
+  background: var(--background-secondary);
+  cursor: pointer;
+}
