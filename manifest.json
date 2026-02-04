@@ -1,9 +1,9 @@
 {
   "id": "obsd-dashboard",
-  "name": "Dashboard Plugin",
+  "name": "OBSD Dashboard",
   "version": "0.1.0",
   "minAppVersion": "1.5.0",
-  "description": "Modular dashboard view with widget adapters.",
+  "description": "Modular dashboard view with widget adapters using Dataview API to display various types of information from your vault.",
   "author": "gonefabi",
   "isDesktopOnly": false
 }
