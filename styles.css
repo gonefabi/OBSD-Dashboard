@@ -8,8 +8,8 @@
   background: var(--background-secondary);
   color: var(--text-normal);
   border-radius: 6px;
-  padding: 2px 8px;
-  font-size: 12px;
+  padding: 1px 6px;
+  font-size: 11px;
   cursor: pointer;
 }
 
@@ -18,8 +18,8 @@
   background: var(--background-primary);
   color: var(--text-muted);
   border-radius: 6px;
-  padding: 2px 8px;
-  font-size: 12px;
+  padding: 1px 6px;
+  font-size: 11px;
   cursor: pointer;
 }
 
@@ -31,8 +31,8 @@
 
 .obsd-widget-config {
   display: grid;
-  gap: 6px;
-  padding: 8px;
+  gap: 4px;
+  padding: 6px;
   margin-bottom: 8px;
   border: 1px dashed var(--background-modifier-border);
   border-radius: 8px;
@@ -60,7 +60,7 @@
 
 .obsd-widget-config-row {
   display: grid;
-  grid-template-columns: 140px 1fr;
+  grid-template-columns: 120px 1fr;
   gap: 8px;
   align-items: center;
 }
@@ -93,9 +93,53 @@
 }
 
 .obsd-widget-config-note {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
   margin-top: -2px;
+}
+
+.obsd-widget-header {
+  font-size: 12px;
+}
+
+.obsd-widget-header.is-align-right {
+  text-align: right;
+}
+
+.obsd-widget-header-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+  justify-content: flex-start;
+}
+
+.obsd-widget-header.is-align-right .obsd-widget-header-content {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.obsd-widget-header-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.obsd-widget-header-icon {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.obsd-widget-edit-floating {
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 2;
 }
 
 .obsd-widget-yaml {
@@ -127,36 +171,122 @@
   justify-content: center;
   height: 100%;
   text-align: center;
-  gap: 6px;
+  gap: 4px;
+  min-height: 0;
+}
+
+.obsd-stat.is-align-left {
+  align-items: flex-start;
+  text-align: left;
+}
+
+.obsd-stat.is-align-right {
+  align-items: flex-end;
+  text-align: right;
 }
 
 .obsd-stat-caption {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
+.obsd-stat-metric {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 0;
+  --obsd-stat-icon-size: min(80%, 160px);
+  --obsd-stat-icon-gap: clamp(2px, 1.5vw, 10px);
+  width: 100%;
+}
+
+.obsd-stat.is-align-left .obsd-stat-metric {
+  justify-content: flex-start;
+}
+
+.obsd-stat.is-align-right .obsd-stat-metric {
+  justify-content: flex-end;
+}
+
+.obsd-stat-metric.is-icon-left {
+  padding-left: calc(var(--obsd-stat-icon-size) + var(--obsd-stat-icon-gap));
+}
+
+.obsd-stat-metric.is-icon-right {
+  padding-right: calc(var(--obsd-stat-icon-size) + var(--obsd-stat-icon-gap));
+}
+
+.obsd-stat-icon {
+  position: absolute;
+  width: var(--obsd-stat-icon-size);
+  height: var(--obsd-stat-icon-size);
+  max-height: 80%;
+  max-width: 80%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  flex: 0 0 auto;
+}
+
+.obsd-stat-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.obsd-stat-metric.is-icon-left .obsd-stat-icon {
+  left: 0;
+}
+
+.obsd-stat-metric.is-icon-right .obsd-stat-icon {
+  right: 0;
+}
+
+.obsd-stat-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  min-width: 0;
+  text-align: inherit;
+}
+
+.obsd-stat.is-align-left .obsd-stat-text {
+  align-items: flex-start;
+}
+
+.obsd-stat.is-align-right .obsd-stat-text {
+  align-items: flex-end;
+}
+
 .obsd-stat-value {
-  font-size: 32px;
+  font-size: clamp(16px, 3.6vw, 28px);
   font-weight: 700;
   color: var(--text-normal);
   line-height: 1.1;
+  text-align: inherit;
 }
 
 .obsd-stat-compare {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
+  margin-top: 2px;
+  text-align: inherit;
 }
 
 .obsd-status {
   display: flex;
   flex-direction: column;
-  gap: clamp(4px, 1.2vh, 8px);
+  gap: clamp(2px, 1vh, 6px);
   align-items: stretch;
   justify-content: center;
   height: 100%;
-  padding: 4px 0;
+  padding: clamp(0px, 0.6vh, 4px) 0;
 }
 
 .obsd-status-value {
@@ -168,7 +298,7 @@
 
 .obsd-status-bar {
   width: 100%;
-  height: clamp(6px, 1.2vh, 10px);
+  height: clamp(5px, 1vh, 9px);
   border-radius: 999px;
   background: var(--background-modifier-border);
   overflow: hidden;
@@ -180,7 +310,7 @@
 }
 
 .obsd-status-caption {
-  font-size: clamp(10px, 1.6vh, 12px);
+  font-size: clamp(9px, 1.4vh, 12px);
   color: var(--text-muted);
   text-align: center;
 }

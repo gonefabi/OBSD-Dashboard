@@ -1,4 +1,5 @@
 import * as React from "react";
+import { setIcon } from "obsidian";
 import {
   Pie,
   PieChart,
@@ -33,6 +34,10 @@ export type TimeField = "created" | "modified";
 export type StatsCompareMode = "none" | "previous-period" | "fixed-period" | "filter";
 export type StatsCompareDisplay = "number" | "percent";
 export type StatsCompareBasis = "total" | "per-day";
+export type StatsIconPosition = "left" | "right";
+export type StatsValueAlign = "left" | "center" | "right";
+export type HeaderAlign = "left" | "right";
+export type HeaderIconPosition = "left" | "right";
 export type LegendPosition = "auto" | "left" | "right" | "top" | "bottom";
 export type LegendDisplay = "list" | "hover";
 
@@ -41,6 +46,10 @@ export interface WidgetBaseConfig {
   type: WidgetType;
   title?: string;
   titleSize?: number;
+  showTitle?: boolean;
+  headerAlign?: HeaderAlign;
+  headerIconName?: string;
+  headerIconPosition?: HeaderIconPosition;
   x: number;
   y: number;
   w: number;
@@ -67,6 +76,9 @@ export interface StatsWidgetConfig extends WidgetBaseConfig {
   compareRange?: TimeRangeConfig;
   compareFilters?: QueryFilter[];
   compareLabel?: string;
+  iconName?: string;
+  iconPosition?: StatsIconPosition;
+  valueAlign?: StatsValueAlign;
 }
 
 export interface StatusBarWidgetConfig extends WidgetBaseConfig {
@@ -578,23 +590,34 @@ const WidgetFrame: React.FC<{
     background: "var(--background-primary)",
     border: "1px solid var(--background-modifier-border)",
     borderRadius: "10px",
-    padding: "12px",
+    padding: "10px",
     overflow: "hidden",
     minWidth: 0,
     minHeight: 0,
     position: "relative",
   };
 
-  const headerLabel = config.title ?? (editable ? "Widget" : undefined);
+  const showTitle = config.showTitle !== false;
+  const headerLabel = showTitle
+    ? config.title ?? (editable ? "Widget" : undefined)
+    : undefined;
   const headerSize = typeof config.titleSize === "number" ? config.titleSize : undefined;
+  const headerAlign = config.headerAlign === "right" ? "right" : "left";
+  const headerIconName = config.headerIconName?.trim();
+  const valueIconActive = config.type === "stats" && Boolean(config.iconName?.trim());
+  const showHeaderIcon = Boolean(headerIconName) && !valueIconActive;
+  const headerIconPosition = config.headerIconPosition === "right" ? "right" : "left";
+  const headerHasBody = Boolean(headerLabel || showHeaderIcon);
+  const hasHeaderContent = headerHasBody || editable;
 
   return (
     <section
       className={`obsd-widget${configOpen && editable ? " is-editing" : ""}`}
       style={style}
     >
-      {headerLabel ? (
+      {hasHeaderContent ? (
         <header
+          className={`obsd-widget-header is-align-${headerAlign}`}
           style={{
             display: "flex",
             alignItems: "center",
@@ -603,23 +626,37 @@ const WidgetFrame: React.FC<{
             fontWeight: 600,
             fontSize: headerSize ? `${headerSize}px` : undefined,
             lineHeight: 1.2,
-            marginBottom: configOpen ? "6px" : "8px",
+            marginBottom: headerHasBody ? (configOpen ? "4px" : "6px") : "0",
             cursor: editable ? "grab" : "default",
             touchAction: editable ? "none" : "auto",
+            minHeight: headerHasBody ? undefined : "0",
+            padding: headerHasBody ? undefined : "0",
+            position: "relative",
+            overflow: "visible",
           }}
         >
-          <span
+          <div
+            className="obsd-widget-header-content"
             onPointerDown={editable ? (event) => onDragStart(event, config) : undefined}
-            style={{ flex: 1, minWidth: 0 }}
           >
-            {headerLabel}
-          </span>
+            {showHeaderIcon && headerIconPosition === "left" ? (
+              <LucideIcon name={headerIconName} className="obsd-widget-header-icon" />
+            ) : null}
+            {headerLabel ? (
+              <span className="obsd-widget-header-title">{headerLabel}</span>
+            ) : null}
+            {showHeaderIcon && headerIconPosition === "right" ? (
+              <LucideIcon name={headerIconName} className="obsd-widget-header-icon" />
+            ) : null}
+          </div>
           {editable ? (
-            <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-              <button className="obsd-widget-edit" onClick={onToggleConfig} type="button">
-                {configOpen ? "Close" : "Edit"}
-              </button>
-            </div>
+            <button
+              className="obsd-widget-edit obsd-widget-edit-floating"
+              onClick={onToggleConfig}
+              type="button"
+            >
+              {configOpen ? "Close" : "Edit"}
+            </button>
           ) : null}
         </header>
       ) : null}
@@ -836,6 +873,20 @@ const WidgetConfigPanel: React.FC<{
   const baseViewFields = (
     <>
       <div className="obsd-widget-config-row">
+        <label>Show title</label>
+        <input
+          type="checkbox"
+          checked={config.showTitle !== false}
+          onChange={(event) => {
+            const next = event.target.checked;
+            onUpdate((widget) => ({
+              ...widget,
+              showTitle: next,
+            }));
+          }}
+        />
+      </div>
+      <div className="obsd-widget-config-row">
         <label>Title</label>
         <input
           type="text"
@@ -864,6 +915,56 @@ const WidgetConfigPanel: React.FC<{
             }));
           }}
         />
+      </div>
+      <div className="obsd-widget-config-row">
+        <label>Title side</label>
+        <select
+          value={config.headerAlign ?? "left"}
+          onChange={(event) => {
+            const value = event.target.value === "right" ? "right" : "left";
+            onUpdate((widget) => ({
+              ...widget,
+              headerAlign: value,
+            }));
+          }}
+        >
+          <option value="left">Left</option>
+          <option value="right">Right</option>
+        </select>
+      </div>
+      <div className="obsd-widget-config-row">
+        <label>Header icon</label>
+        <input
+          type="text"
+          value={config.headerIconName ?? ""}
+          placeholder="zap"
+          onChange={(event) => {
+            const value = event.target.value.trim();
+            onUpdate((widget) => ({
+              ...widget,
+              headerIconName: value.length > 0 ? value : undefined,
+            }));
+          }}
+        />
+      </div>
+      <div className="obsd-widget-config-row">
+        <label>Icon side</label>
+        <select
+          value={config.headerIconPosition ?? "left"}
+          onChange={(event) => {
+            const value = event.target.value === "right" ? "right" : "left";
+            onUpdate((widget) => ({
+              ...widget,
+              headerIconPosition: value,
+            }));
+          }}
+        >
+          <option value="left">Left</option>
+          <option value="right">Right</option>
+        </select>
+      </div>
+      <div className="obsd-widget-config-note">
+        Set Show title off + Header icon to show icon-only headers.
       </div>
     </>
   );
@@ -1012,10 +1113,12 @@ const WidgetConfigPanel: React.FC<{
       </>
     );
 
+    const viewFields = viewSection();
+
     return (
       <div className="obsd-widget-config">
         {tabs}
-        {activeTab === "data" ? dataFields : viewSection()}
+        {activeTab === "data" ? dataFields : viewFields}
       </div>
     );
   }
@@ -1346,10 +1449,76 @@ const WidgetConfigPanel: React.FC<{
       </>
     );
 
+    const viewFields = viewSection(
+      <>
+        <div className="obsd-widget-config-row">
+          <label>Value icon</label>
+          <input
+            type="text"
+            value={config.iconName ?? ""}
+            placeholder="calendar"
+            onChange={(event) => {
+              const value = event.target.value.trim();
+              onUpdate((widget) => {
+                if (widget.type !== "stats") return widget;
+                return {
+                  ...widget,
+                  iconName: value.length > 0 ? value : undefined,
+                };
+              });
+            }}
+          />
+        </div>
+        <div className="obsd-widget-config-row">
+          <label>Value icon side</label>
+          <select
+            value={config.iconPosition ?? "left"}
+            onChange={(event) => {
+              const value = event.target.value === "right" ? "right" : "left";
+              onUpdate((widget) => {
+                if (widget.type !== "stats") return widget;
+                return {
+                  ...widget,
+                  iconPosition: value,
+                };
+              });
+            }}
+          >
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+          </select>
+        </div>
+        <div className="obsd-widget-config-row">
+          <label>Value alignment</label>
+          <select
+            value={config.valueAlign ?? "center"}
+            onChange={(event) => {
+              const raw = event.target.value;
+              const value = raw === "left" ? "left" : raw === "right" ? "right" : "center";
+              onUpdate((widget) => {
+                if (widget.type !== "stats") return widget;
+                return {
+                  ...widget,
+                  valueAlign: value,
+                };
+              });
+            }}
+          >
+            <option value="center">Centered</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+          </select>
+        </div>
+        <div className="obsd-widget-config-note">
+          Use any Lucide icon name. Leave empty to hide the value icon.
+        </div>
+      </>
+    );
+
     return (
       <div className="obsd-widget-config">
         {tabs}
-        {activeTab === "data" ? dataFields : viewSection()}
+        {activeTab === "data" ? dataFields : viewFields}
       </div>
     );
   }
@@ -2124,6 +2293,9 @@ const StatsWidget: React.FC<WidgetComponentProps<StatsWidgetConfig>> = ({
   const compareDisplay = config.compareDisplay ?? "number";
   const compareBasis = config.compareBasis ?? "total";
   const compareLabel = (config.compareLabel ?? "Delta").trim();
+  const iconName = config.iconName?.trim();
+  const iconPosition = config.iconPosition ?? "left";
+  const valueAlign = config.valueAlign ?? "center";
 
   React.useEffect(() => {
     let cancelled = false;
@@ -2234,12 +2406,26 @@ const StatsWidget: React.FC<WidgetComponentProps<StatsWidgetConfig>> = ({
   }
 
   return (
-    <div className="obsd-stat">
+    <div className={`obsd-stat is-align-${valueAlign}`}>
       {compareBasis === "per-day" ? (
         <div className="obsd-stat-caption">Avg / day</div>
       ) : null}
-      <div className="obsd-stat-value">{formattedPrimary}</div>
-      {deltaText ? <div className="obsd-stat-compare">{deltaText}</div> : null}
+      <div
+        className={`obsd-stat-metric${
+          iconName ? ` is-icon-${iconPosition}` : ""
+        }`}
+      >
+        {iconPosition === "left" ? (
+          <LucideIcon name={iconName} className="obsd-stat-icon" />
+        ) : null}
+        <div className="obsd-stat-text">
+          <div className="obsd-stat-value">{formattedPrimary}</div>
+          {deltaText ? <div className="obsd-stat-compare">{deltaText}</div> : null}
+        </div>
+        {iconPosition === "right" ? (
+          <LucideIcon name={iconName} className="obsd-stat-icon" />
+        ) : null}
+      </div>
     </div>
   );
 };
@@ -2453,6 +2639,25 @@ const WidgetRegistry: Record<WidgetType, React.FC<WidgetComponentProps<any>>> = 
   "status-bar": StatusBarWidget,
   "pie-chart": PieChartWidget,
   "line-chart": LineChartWidget,
+};
+
+const LucideIcon: React.FC<{ name?: string; className?: string }> = ({
+  name,
+  className,
+}) => {
+  const iconRef = React.useRef<HTMLSpanElement | null>(null);
+  const iconName = name?.trim();
+
+  React.useEffect(() => {
+    if (!iconRef.current) return;
+    iconRef.current.innerHTML = "";
+    if (iconName) {
+      setIcon(iconRef.current, iconName);
+    }
+  }, [iconName]);
+
+  if (!iconName) return null;
+  return <span ref={iconRef} className={className} aria-hidden="true" />;
 };
 
 const groupPages = (
@@ -2962,7 +3167,7 @@ function resolveLegendPosition(
   if (position !== "auto") return position;
   const width = config.w ?? 2;
   const height = config.h ?? 2;
-  return width >= Math.max(4, height + 1) ? "left" : "bottom";
+  return width >= height ? "left" : "bottom";
 }
 
 function ensureChartSeries(
