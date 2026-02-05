@@ -13,14 +13,16 @@ import type {
   WidgetConfig,
   WidgetType,
 } from "./types";
-import { LineChartWidget } from "./widgets/LineChartWidget";
-import { LucideIcon } from "./widgets/LucideIcon";
-import { PieChartWidget } from "./widgets/PieChartWidget";
-import { StatsWidget } from "./widgets/StatsWidget";
-import { StatusBarWidget } from "./widgets/StatusBarWidget";
-import { TaskListWidget } from "./widgets/TaskListWidget";
+import {
+  LineChartWidget,
+  LucideIcon,
+  PieChartWidget,
+  StatsWidget,
+  StatusBarWidget,
+  TaskListWidget,
+} from "./widgets";
 import { WidgetConfigPanel } from "./widgets/config/WidgetConfigPanel";
-import type { WidgetComponentProps } from "./widgets/types";
+import type { WidgetComponentProps } from "./widgets";
 
 
 export interface DashboardViewProps {
