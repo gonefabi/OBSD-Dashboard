@@ -7,6 +7,8 @@ export interface Task {
   due?: string;
   tags?: string[];
   section?: string;
+  fileCtime?: string;
+  fileMtime?: string;
 }
 
 export interface Page {

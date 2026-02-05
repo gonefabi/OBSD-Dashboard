@@ -2,9 +2,11 @@ import type {
   DashboardLayout,
   PieChartWidgetConfig,
   LineChartWidgetConfig,
+  StatsWidgetConfig,
+  StatusBarWidgetConfig,
   TaskListWidgetConfig,
   WidgetConfig,
-} from "../DashboardView";
+} from "../types";
 
 export const cloneLayout = (layout: DashboardLayout): DashboardLayout =>
   JSON.parse(JSON.stringify(layout)) as DashboardLayout;
@@ -93,6 +95,14 @@ const isWidgetConfig = (value: unknown): value is WidgetConfig => {
     return isLineChartWidget(widget);
   }
 
+  if (widget.type === "stats") {
+    return isStatsWidget(widget);
+  }
+
+  if (widget.type === "status-bar") {
+    return isStatusBarWidget(widget);
+  }
+
   return false;
 };
 
@@ -110,6 +120,16 @@ const isPieChartWidget = (widget: WidgetConfig): widget is PieChartWidgetConfig 
 const isLineChartWidget = (widget: WidgetConfig): widget is LineChartWidgetConfig => {
   const candidate = widget as LineChartWidgetConfig;
   return typeof candidate.query === "string" && typeof candidate.groupBy === "string";
+};
+
+const isStatsWidget = (widget: WidgetConfig): widget is StatsWidgetConfig => {
+  const candidate = widget as StatsWidgetConfig;
+  return candidate.type === "stats";
+};
+
+const isStatusBarWidget = (widget: WidgetConfig): widget is StatusBarWidgetConfig => {
+  const candidate = widget as StatusBarWidgetConfig;
+  return candidate.type === "status-bar";
 };
 
 const isNumber = (value: unknown): value is number =>

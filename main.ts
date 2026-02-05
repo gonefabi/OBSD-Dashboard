@@ -1,18 +1,17 @@
-import { ItemView, Menu, Plugin, WorkspaceLeaf } from "obsidian";
-import * as React from "react";
-import { createRoot, Root } from "react-dom/client";
-import { DashboardView, DashboardLayout } from "./src/ui/DashboardView";
+import { Plugin } from "obsidian";
+import type { DashboardLayout } from "./src/ui/types";
 import { DashboardSettingsTab } from "./src/ui/settings/DashboardSettingsTab";
 import { cloneLayout, isDashboardLayout, normalizeLayout, resolveCollisions } from "./src/ui/layout/layoutUtils";
+import { DEFAULT_TIME_PRESETS, cloneTimePresets, normalizeTimePresets, TimePreset } from "./src/ui/timePresets";
 import { DataviewService } from "./src/services/DataviewService";
 import { IDataSource } from "./src/interfaces/IDataSource";
-
-const VIEW_TYPE_DASHBOARD = "obsd-dashboard-view";
+import { DashboardItemView, VIEW_TYPE_DASHBOARD } from "./src/ui/DashboardItemView";
 
 interface DashboardPluginData {
   layout: DashboardLayout;
   editable: boolean;
   openOnStartup: boolean;
+  timePresets: TimePreset[];
 }
 
 const DEFAULT_LAYOUT: DashboardLayout = {
@@ -51,6 +50,7 @@ const DEFAULT_DATA: DashboardPluginData = {
   layout: cloneLayout(DEFAULT_LAYOUT),
   editable: false,
   openOnStartup: false,
+  timePresets: cloneTimePresets(DEFAULT_TIME_PRESETS),
 };
 
 export default class DashboardPlugin extends Plugin {
@@ -75,11 +75,24 @@ export default class DashboardPlugin extends Plugin {
       callback: () => this.activateView(),
     });
 
-    if (this.data.openOnStartup) {
-      this.app.workspace.onLayoutReady(() => {
-        void this.activateView();
+    this.app.workspace.onLayoutReady(() => {
+      const ready = this.waitForDataviewReady();
+      void ready.then(() => {
+        this.refreshViews();
       });
-    }
+      if (this.data.openOnStartup) {
+        void ready.finally(() => {
+          const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_DASHBOARD)[0];
+          if (existing) {
+            this.app.workspace.revealLeaf(existing);
+            this.refreshViews();
+            return;
+          }
+          void this.activateView();
+          this.refreshViews();
+        });
+      }
+    });
   }
 
   onunload(): void {
@@ -129,10 +142,57 @@ export default class DashboardPlugin extends Plugin {
     await this.saveData(this.data);
   }
 
+  getTimePresets(): TimePreset[] {
+    return this.data.timePresets;
+  }
+
+  async setTimePresets(presets: TimePreset[]): Promise<void> {
+    this.data.timePresets = normalizeTimePresets(presets);
+    await this.saveData(this.data);
+    this.refreshViews();
+  }
+
   async activateView(): Promise<void> {
+    const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_DASHBOARD)[0];
+    if (existing) {
+      this.app.workspace.revealLeaf(existing);
+      return;
+    }
+
     const leaf = this.app.workspace.getLeaf(true);
     await leaf.setViewState({ type: VIEW_TYPE_DASHBOARD, active: true });
     this.app.workspace.revealLeaf(leaf);
+  }
+
+  private async waitForDataviewReady(
+    timeoutMs = 10000,
+    intervalMs = 250
+  ): Promise<boolean> {
+    if (this.hasDataviewApi()) return true;
+
+    const start = Date.now();
+    return new Promise((resolve) => {
+      const tick = () => {
+        if (this.hasDataviewApi()) {
+          resolve(true);
+          return;
+        }
+        if (Date.now() - start >= timeoutMs) {
+          resolve(false);
+          return;
+        }
+        setTimeout(tick, intervalMs);
+      };
+
+      tick();
+    });
+  }
+
+  private hasDataviewApi(): boolean {
+    const plugins = (this.app as unknown as {
+      plugins?: { plugins?: Record<string, { api?: unknown }> };
+    }).plugins?.plugins;
+    return Boolean(plugins?.dataview?.api);
   }
 
   private normalizeData(loaded: DashboardPluginData | null): DashboardPluginData {
@@ -148,6 +208,7 @@ export default class DashboardPlugin extends Plugin {
       editable: typeof loaded.editable === "boolean" ? loaded.editable : fallback.editable,
       openOnStartup:
         typeof loaded.openOnStartup === "boolean" ? loaded.openOnStartup : fallback.openOnStartup,
+      timePresets: normalizeTimePresets(loaded.timePresets),
     };
   }
 
@@ -158,77 +219,5 @@ export default class DashboardPlugin extends Plugin {
         view.refresh();
       }
     });
-  }
-}
-
-class DashboardItemView extends ItemView {
-  private plugin: DashboardPlugin;
-  private root: Root | null = null;
-
-  constructor(leaf: WorkspaceLeaf, plugin: DashboardPlugin) {
-    super(leaf);
-    this.plugin = plugin;
-  }
-
-  getViewType(): string {
-    return VIEW_TYPE_DASHBOARD;
-  }
-
-  getDisplayText(): string {
-    return "Dashboard";
-  }
-
-  getIcon(): string {
-    return "layout-dashboard";
-  }
-
-  onPaneMenu(menu: Menu, source: string): void {
-    super.onPaneMenu(menu, source);
-
-    menu.addItem((item) => {
-      const isEditing = this.plugin.getEditable();
-      item.setTitle(isEditing ? "Exit edit mode" : "Edit dashboard");
-      item.setIcon(isEditing ? "checkmark" : "pencil");
-      item.onClick(() => {
-        void this.plugin.toggleEditable();
-      });
-    });
-
-    menu.addItem((item) => {
-      item.setTitle("Reset dashboard layout");
-      item.setIcon("rotate-ccw");
-      item.onClick(() => {
-        void this.plugin.resetLayout();
-      });
-    });
-  }
-
-  async onOpen(): Promise<void> {
-    this.contentEl.empty();
-    this.contentEl.addClass("obsd-dashboard-view");
-    this.root = createRoot(this.contentEl);
-    this.render();
-  }
-
-  async onClose(): Promise<void> {
-    this.root?.unmount();
-    this.root = null;
-  }
-
-  refresh(): void {
-    this.render();
-  }
-
-  private render(): void {
-    if (!this.root) return;
-
-    this.root.render(
-      React.createElement(DashboardView, {
-        dataSource: this.plugin.getDataSource(),
-        layout: this.plugin.getLayout(),
-        editable: this.plugin.getEditable(),
-        onLayoutChange: (layout: DashboardLayout) => this.plugin.setLayout(layout),
-      })
-    );
   }
 }

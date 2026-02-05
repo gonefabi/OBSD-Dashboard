@@ -124,6 +124,8 @@ export class DataviewService implements IDataSource {
       due: this.formatMaybeDate(task.due),
       tags: this.normalizeTags(task.tags ?? page?.file?.tags ?? page?.tags),
       section: typeof task.section === "string" ? task.section : task.section?.subpath,
+      fileCtime: this.formatMaybeDate(page?.file?.ctime),
+      fileMtime: this.formatMaybeDate(page?.file?.mtime),
     };
   }
 
