@@ -6,7 +6,7 @@ import type {
   StatusBarWidgetConfig,
   TaskListWidgetConfig,
   WidgetConfig,
-} from "../DashboardView";
+} from "../types";
 
 export const cloneLayout = (layout: DashboardLayout): DashboardLayout =>
   JSON.parse(JSON.stringify(layout)) as DashboardLayout;

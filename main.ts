@@ -1,7 +1,8 @@
 import { ItemView, Menu, Plugin, WorkspaceLeaf } from "obsidian";
 import * as React from "react";
 import { createRoot, Root } from "react-dom/client";
-import { DashboardView, DashboardLayout } from "./src/ui/DashboardView";
+import { DashboardView } from "./src/ui/DashboardView";
+import type { DashboardLayout } from "./src/ui/types";
 import { DashboardSettingsTab } from "./src/ui/settings/DashboardSettingsTab";
 import { cloneLayout, isDashboardLayout, normalizeLayout, resolveCollisions } from "./src/ui/layout/layoutUtils";
 import { DEFAULT_TIME_PRESETS, cloneTimePresets, normalizeTimePresets, TimePreset } from "./src/ui/timePresets";
@@ -78,11 +79,24 @@ export default class DashboardPlugin extends Plugin {
       callback: () => this.activateView(),
     });
 
-    if (this.data.openOnStartup) {
-      this.app.workspace.onLayoutReady(() => {
-        void this.activateView();
+    this.app.workspace.onLayoutReady(() => {
+      const ready = this.waitForDataviewReady();
+      void ready.then(() => {
+        this.refreshViews();
       });
-    }
+      if (this.data.openOnStartup) {
+        void ready.finally(() => {
+          const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_DASHBOARD)[0];
+          if (existing) {
+            this.app.workspace.revealLeaf(existing);
+            this.refreshViews();
+            return;
+          }
+          void this.activateView();
+          this.refreshViews();
+        });
+      }
+    });
   }
 
   onunload(): void {
@@ -143,9 +157,46 @@ export default class DashboardPlugin extends Plugin {
   }
 
   async activateView(): Promise<void> {
+    const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_DASHBOARD)[0];
+    if (existing) {
+      this.app.workspace.revealLeaf(existing);
+      return;
+    }
+
     const leaf = this.app.workspace.getLeaf(true);
     await leaf.setViewState({ type: VIEW_TYPE_DASHBOARD, active: true });
     this.app.workspace.revealLeaf(leaf);
+  }
+
+  private async waitForDataviewReady(
+    timeoutMs = 10000,
+    intervalMs = 250
+  ): Promise<boolean> {
+    if (this.hasDataviewApi()) return true;
+
+    const start = Date.now();
+    return new Promise((resolve) => {
+      const tick = () => {
+        if (this.hasDataviewApi()) {
+          resolve(true);
+          return;
+        }
+        if (Date.now() - start >= timeoutMs) {
+          resolve(false);
+          return;
+        }
+        setTimeout(tick, intervalMs);
+      };
+
+      tick();
+    });
+  }
+
+  private hasDataviewApi(): boolean {
+    const plugins = (this.app as unknown as {
+      plugins?: { plugins?: Record<string, { api?: unknown }> };
+    }).plugins?.plugins;
+    return Boolean(plugins?.dataview?.api);
   }
 
   private normalizeData(loaded: DashboardPluginData | null): DashboardPluginData {
