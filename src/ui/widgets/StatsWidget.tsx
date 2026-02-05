@@ -1,3 +1,4 @@
+// Single-number stat widget with optional comparison.
 import * as React from "react";
 import { useDataSource, useTimePresets } from "../widgetContext";
 import {

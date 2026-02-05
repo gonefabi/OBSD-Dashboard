@@ -1,3 +1,4 @@
+// Line chart widget using Recharts.
 import * as React from "react";
 import {
   CartesianGrid,

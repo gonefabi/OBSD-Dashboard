@@ -1,3 +1,4 @@
+// React root view for the dashboard grid + widget frame.
 import * as React from "react";
 import { IDataSource } from "../interfaces/IDataSource";
 import { normalizeLayout, resolveCollisions } from "./layout/layoutUtils";

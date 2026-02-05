@@ -1,3 +1,4 @@
+// Task list widget with toggles via IDataSource.
 import * as React from "react";
 import type { Task } from "../../interfaces/IDataSource";
 import { useDataSource } from "../widgetContext";

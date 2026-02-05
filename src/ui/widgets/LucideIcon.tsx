@@ -1,3 +1,4 @@
+// Shared lucide icon renderer for widgets.
 import * as React from "react";
 import { setIcon } from "obsidian";
 

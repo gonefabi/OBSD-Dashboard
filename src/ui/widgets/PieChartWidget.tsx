@@ -1,3 +1,4 @@
+// Pie chart widget using Recharts.
 import * as React from "react";
 import {
   Cell,

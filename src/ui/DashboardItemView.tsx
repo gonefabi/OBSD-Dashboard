@@ -1,3 +1,4 @@
+// Obsidian view wrapper for the dashboard React tree.
 import { ItemView, Menu, WorkspaceLeaf } from "obsidian";
 import * as React from "react";
 import { createRoot, Root } from "react-dom/client";

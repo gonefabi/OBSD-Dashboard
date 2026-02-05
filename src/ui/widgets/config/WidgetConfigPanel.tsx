@@ -1,3 +1,4 @@
+// Widget edit UI shared across widget types.
 import * as React from "react";
 import { CUSTOM_RANGE_ID, DEFAULT_TIME_PRESETS } from "../../timePresets";
 import { useTimePresets } from "../../widgetContext";

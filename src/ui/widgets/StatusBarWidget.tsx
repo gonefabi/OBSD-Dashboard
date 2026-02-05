@@ -1,3 +1,4 @@
+// Progress-style status bar widget.
 import * as React from "react";
 import { useDataSource, useTimePresets } from "../widgetContext";
 import {
