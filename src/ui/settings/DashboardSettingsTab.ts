@@ -19,8 +19,8 @@ export class DashboardSettingsTab extends PluginSettingTab {
       .setDesc("Automatically open the dashboard view when Obsidian starts.")
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.getOpenOnStartup());
-        toggle.onChange(async (value) => {
-          await this.plugin.setOpenOnStartup(value);
+        toggle.onChange((value) => {
+          void this.plugin.setOpenOnStartup(value);
         });
       });
 
@@ -30,13 +30,15 @@ export class DashboardSettingsTab extends PluginSettingTab {
       .addButton((button) => {
         button.setWarning();
         button.setButtonText("Reset layout");
-        button.onClick(async () => {
-          await this.plugin.resetLayout();
-          new Notice("Dashboard layout reset");
+        button.onClick(() => {
+          void this.plugin.resetLayout().then(
+            () => new Notice("Dashboard layout reset"),
+            (error) => console.error(error)
+          );
         });
       });
 
-    this.containerEl.createEl("h3", { text: "Time range presets" });
+    new Setting(this.containerEl).setName("Time range presets").setHeading();
     this.containerEl.createEl("p", {
       text:
         "Presets appear in all widgets. You can edit, delete, or add custom ranges.",
@@ -59,19 +61,14 @@ export class DashboardSettingsTab extends PluginSettingTab {
 
     presets.forEach((preset, index) => {
       const card = this.containerEl.createDiv();
-      card.style.border = "1px solid var(--background-modifier-border)";
-      card.style.borderRadius = "8px";
-      card.style.padding = "8px";
-      card.style.marginBottom = "8px";
-      card.style.display = "grid";
-      card.style.gap = "6px";
+      card.addClass("obsd-settings-card");
 
       new Setting(card)
         .setName("Label")
         .addText((text) => {
           text.setValue(preset.label ?? "");
-          text.onChange(async (value) => {
-            await updatePreset(index, { label: value || preset.id });
+          text.onChange((value) => {
+            void updatePreset(index, { label: value || preset.id });
           });
         });
 
@@ -81,7 +78,7 @@ export class DashboardSettingsTab extends PluginSettingTab {
         dropdown.addOption("relative", "Relative (offset days)");
         dropdown.addOption("calendar", "Calendar range");
         dropdown.setValue(preset.type);
-        dropdown.onChange(async (value) => {
+        dropdown.onChange((value) => {
           const nextType =
             value === "calendar" ? "calendar" : value === "relative" ? "relative" : "all";
           const patch: Partial<TimePreset> = { type: nextType };
@@ -98,7 +95,7 @@ export class DashboardSettingsTab extends PluginSettingTab {
             patch.startOffsetDays = undefined;
             patch.endOffsetDays = undefined;
           }
-          await updatePreset(index, patch);
+          void updatePreset(index, patch);
           this.display();
         });
       });
@@ -118,9 +115,9 @@ export class DashboardSettingsTab extends PluginSettingTab {
             text.setValue(
               typeof preset.startOffsetDays === "number" ? String(preset.startOffsetDays) : ""
             );
-            text.onChange(async (value) => {
+            text.onChange((value) => {
               const nextValue = value.trim().length ? Number(value) : undefined;
-              await updatePreset(index, {
+              void updatePreset(index, {
                 startOffsetDays: Number.isFinite(nextValue) ? nextValue : undefined,
               });
             });
@@ -135,9 +132,9 @@ export class DashboardSettingsTab extends PluginSettingTab {
             text.setValue(
               typeof preset.endOffsetDays === "number" ? String(preset.endOffsetDays) : ""
             );
-            text.onChange(async (value) => {
+            text.onChange((value) => {
               const nextValue = value.trim().length ? Number(value) : undefined;
-              await updatePreset(index, {
+              void updatePreset(index, {
                 endOffsetDays: Number.isFinite(nextValue) ? nextValue : undefined,
               });
             });
@@ -156,9 +153,9 @@ export class DashboardSettingsTab extends PluginSettingTab {
             dropdown.setValue(
               isCalendarPreset(preset.calendar ?? "") ? preset.calendar : "this-week"
             );
-            dropdown.onChange(async (value) => {
+            dropdown.onChange((value) => {
               const nextValue = isCalendarPreset(value) ? value : "this-week";
-              await updatePreset(index, { calendar: nextValue });
+              void updatePreset(index, { calendar: nextValue });
             });
           });
         }
@@ -169,9 +166,9 @@ export class DashboardSettingsTab extends PluginSettingTab {
       new Setting(card).addButton((button) => {
         button.setWarning();
         button.setButtonText("Delete preset");
-        button.onClick(async () => {
+        button.onClick(() => {
           const next = presets.filter((_, idx) => idx !== index);
-          await updatePresets(next, true);
+          void updatePresets(next, true);
         });
       });
     });
@@ -181,7 +178,7 @@ export class DashboardSettingsTab extends PluginSettingTab {
       .setDesc("Create a custom time range for all widgets.")
       .addButton((button) => {
         button.setButtonText("Add preset");
-        button.onClick(async () => {
+        button.onClick(() => {
           const next = [
             ...presets,
             {
@@ -192,7 +189,7 @@ export class DashboardSettingsTab extends PluginSettingTab {
               endOffsetDays: 0,
             },
           ];
-          await updatePresets(next, true);
+          void updatePresets(next, true);
         });
       });
   }

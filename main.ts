@@ -34,7 +34,7 @@ const DEFAULT_LAYOUT: DashboardLayout = {
     {
       id: "pages-by-tag",
       type: "pie-chart",
-      title: "Pages by Tag",
+      title: "Pages by tag",
       x: 2,
       y: 0,
       w: 2,
@@ -71,8 +71,10 @@ export default class DashboardPlugin extends Plugin {
 
     this.addCommand({
       id: "open-dashboard",
-      name: "Open Dashboard",
-      callback: () => this.activateView(),
+      name: "Open dashboard",
+      callback: () => {
+        void this.activateView();
+      },
     });
 
     this.app.workspace.onLayoutReady(() => {
@@ -95,9 +97,7 @@ export default class DashboardPlugin extends Plugin {
     });
   }
 
-  onunload(): void {
-    this.app.workspace.detachLeavesOfType(VIEW_TYPE_DASHBOARD);
-  }
+  onunload(): void {}
 
   getLayout(): DashboardLayout {
     return this.data.layout;
