@@ -13,6 +13,15 @@
   cursor: pointer;
 }
 
+.obsd-settings-card {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 8px;
+  margin-bottom: 8px;
+  display: grid;
+  gap: 6px;
+}
+
 .obsd-widget-toggle {
   border: 1px solid var(--background-modifier-border);
   background: var(--background-primary);

@@ -54,14 +54,14 @@ export const groupPages = (
     const value = page.frontmatter?.[groupBy];
     if (Array.isArray(value)) {
       if (value.length === 0) increment(counts, "(empty)");
-      for (const entry of value) increment(counts, String(entry));
+      for (const entry of value) increment(counts, stringifyValue(entry));
       continue;
     }
 
     if (value === null || value === undefined || value === "") {
       increment(counts, "(empty)");
     } else {
-      increment(counts, String(value));
+      increment(counts, stringifyValue(value));
     }
   }
 
@@ -76,6 +76,47 @@ export const groupPages = (
 
 const increment = (map: Map<string, number>, key: string) => {
   map.set(key, (map.get(key) ?? 0) + 1);
+};
+
+const stringifyValue = (value: unknown): string => {
+  if (value === null || value === undefined || value === "") return "(empty)";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (value instanceof Date) return value.toISOString();
+  if (value && typeof value === "object") {
+    const asAny = value as { name?: unknown; path?: unknown; value?: unknown };
+    if (typeof asAny.name === "string") return asAny.name;
+    if (typeof asAny.path === "string") return asAny.path;
+    if (typeof asAny.value === "string") return asAny.value;
+    try {
+      const json = JSON.stringify(value);
+      if (json && json !== "{}") return json;
+    } catch {
+      return "(object)";
+    }
+    return "(object)";
+  }
+  return String(value);
+};
+
+const coerceValue = (value: unknown): string => {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (value instanceof Date) return value.toISOString();
+  if (value && typeof value === "object") {
+    const asAny = value as { name?: unknown; path?: unknown; value?: unknown };
+    if (typeof asAny.name === "string") return asAny.name;
+    if (typeof asAny.path === "string") return asAny.path;
+    if (typeof asAny.value === "string") return asAny.value;
+    try {
+      const json = JSON.stringify(value);
+      return json ?? "";
+    } catch {
+      return "";
+    }
+  }
+  return String(value);
 };
 
 export function parseTags(value: string): string[] {
@@ -338,9 +379,13 @@ export function normalizeYamlFilters(
 export function matchYamlValue(value: unknown, values: string[]): boolean {
   if (value === null || value === undefined) return false;
   if (Array.isArray(value)) {
-    return value.some((entry) => values.includes(String(entry)));
+    return value.some((entry) => {
+      const normalized = coerceValue(entry);
+      return normalized.length > 0 && values.includes(normalized);
+    });
   }
-  return values.includes(String(value));
+  const normalized = coerceValue(value);
+  return normalized.length > 0 && values.includes(normalized);
 }
 
 export function filterTasksByPages(tasks: Task[], pages: Page[]): Task[] {

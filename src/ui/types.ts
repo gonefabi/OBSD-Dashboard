@@ -70,7 +70,7 @@ export interface StatusBarWidgetConfig extends WidgetBaseConfig {
 export interface PieChartWidgetConfig extends WidgetBaseConfig {
   type: "pie-chart";
   query: string;
-  groupBy: "tag" | "folder" | "file" | string;
+  groupBy: "tag" | "folder" | "file";
   limit?: number;
   dataMode?: ChartDataMode;
   series?: ChartSeriesConfig[];
@@ -84,7 +84,7 @@ export interface PieChartWidgetConfig extends WidgetBaseConfig {
 export interface LineChartWidgetConfig extends WidgetBaseConfig {
   type: "line-chart";
   query: string;
-  groupBy: "tag" | "folder" | "file" | string;
+  groupBy: "tag" | "folder" | "file";
   limit?: number;
   dataMode?: ChartDataMode;
   series?: ChartSeriesConfig[];

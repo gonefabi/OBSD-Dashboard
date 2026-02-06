@@ -43,9 +43,9 @@ export class DataviewService implements IDataSource {
     this.app = app;
   }
 
-  async queryTasks(filter: string): Promise<Task[]> {
+  queryTasks(filter: string): Promise<Task[]> {
     const api = this.getDataviewApi();
-    if (!api) return [];
+    if (!api) return Promise.resolve([]);
 
     try {
       const pages = this.toArray(api.pages(filter?.trim() || undefined));
@@ -59,23 +59,23 @@ export class DataviewService implements IDataSource {
         }
       }
 
-      return tasks;
+      return Promise.resolve(tasks);
     } catch (error) {
       console.warn("DataviewService.queryTasks failed", error);
-      return [];
+      return Promise.resolve([]);
     }
   }
 
-  async queryPages(query: string): Promise<Page[]> {
+  queryPages(query: string): Promise<Page[]> {
     const api = this.getDataviewApi();
-    if (!api) return [];
+    if (!api) return Promise.resolve([]);
 
     try {
       const pages = this.toArray(api.pages(query));
-      return pages.map((page) => this.mapPage(page as DataviewPage));
+      return Promise.resolve(pages.map((page) => this.mapPage(page as DataviewPage)));
     } catch (error) {
       console.warn("DataviewService.queryPages failed", error);
-      return [];
+      return Promise.resolve([]);
     }
   }
 
@@ -144,8 +144,39 @@ export class DataviewService implements IDataSource {
 
   private normalizeTags(tags: unknown): string[] | undefined {
     if (!tags) return undefined;
-    if (Array.isArray(tags)) return tags.map((tag) => String(tag));
-    return [String(tags)];
+    const items = Array.isArray(tags) ? tags : [tags];
+    const normalized = items
+      .map((tag) => this.stringifyTag(tag))
+      .filter((tag): tag is string => Boolean(tag));
+    return normalized.length > 0 ? normalized : undefined;
+  }
+
+  private stringifyTag(tag: unknown): string | null {
+    if (typeof tag === "string") return tag;
+    if (typeof tag === "number" || typeof tag === "boolean") return String(tag);
+    if (tag instanceof Date) return tag.toISOString();
+    if (tag && typeof tag === "object") {
+      const asAny = tag as {
+        tag?: unknown;
+        path?: unknown;
+        value?: unknown;
+        toString?: () => string;
+      };
+      if (typeof asAny.tag === "string") return asAny.tag;
+      if (typeof asAny.path === "string") return asAny.path;
+      if (typeof asAny.value === "string") return asAny.value;
+      if (typeof asAny.toString === "function") {
+        const str = asAny.toString();
+        if (str && str !== "[object Object]") return str;
+      }
+      try {
+        const json = JSON.stringify(tag);
+        if (json && json !== "{}") return json;
+      } catch {
+        return null;
+      }
+    }
+    return null;
   }
 
   private formatMaybeDate(value: unknown): string | undefined {

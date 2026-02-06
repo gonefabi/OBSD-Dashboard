@@ -61,14 +61,14 @@ export class DashboardItemView extends ItemView {
     });
   }
 
-  async onOpen(): Promise<void> {
+  onOpen(): void {
     this.contentEl.empty();
     this.contentEl.addClass("obsd-dashboard-view");
     this.root = createRoot(this.contentEl);
     this.render();
   }
 
-  async onClose(): Promise<void> {
+  onClose(): void {
     this.root?.unmount();
     this.root = null;
   }
@@ -86,7 +86,9 @@ export class DashboardItemView extends ItemView {
         layout: this.plugin.getLayout(),
         timePresets: this.plugin.getTimePresets(),
         editable: this.plugin.getEditable(),
-        onLayoutChange: (layout: DashboardLayout) => this.plugin.setLayout(layout),
+        onLayoutChange: (layout: DashboardLayout) => {
+          void this.plugin.setLayout(layout);
+        },
       })
     );
   }

@@ -1129,7 +1129,6 @@ export const WidgetConfigPanel: React.FC<WidgetConfigPanelProps> = ({
 
   if (config.type === "pie-chart" || config.type === "line-chart") {
     const chartConfig = config as PieChartWidgetConfig | LineChartWidgetConfig;
-    const dataMode = getChartDataMode(chartConfig);
     const series = ensureChartSeries(chartConfig);
     const timeField = chartConfig.timeField ?? "modified";
     const timeRange = normalizeTimeRange(chartConfig.timeRange);

@@ -53,7 +53,7 @@ export const normalizeTimePresets = (value?: TimePreset[]): TimePreset[] => {
       }
 
       if (preset.type === "calendar") {
-        const calendar = preset.calendar as TimePresetCalendar | undefined;
+        const calendar = preset.calendar;
         if (!calendar || !CALENDAR_VALUES.includes(calendar)) return null;
         return { ...preset, calendar };
       }
@@ -74,5 +74,7 @@ export const normalizeTimePresets = (value?: TimePreset[]): TimePreset[] => {
 export const cloneTimePresets = (value: TimePreset[]): TimePreset[] =>
   value.map((preset) => ({ ...preset }));
 
+const CALENDAR_SET = new Set<string>(CALENDAR_VALUES);
+
 export const isCalendarPreset = (value: string): value is TimePresetCalendar =>
-  CALENDAR_VALUES.includes(value as TimePresetCalendar);
+  CALENDAR_SET.has(value);

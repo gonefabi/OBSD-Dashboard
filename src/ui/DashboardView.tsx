@@ -636,7 +636,7 @@ const AddWidgetMenu: React.FC<{ onSelect: (type: WidgetType) => void }> = ({
   );
 };
 
-const WidgetRegistry: Record<WidgetType, React.FC<WidgetComponentProps<any>>> = {
+const WidgetRegistry: Record<WidgetType, React.FC<WidgetComponentProps<WidgetConfig>>> = {
   "task-list": TaskListWidget,
   stats: StatsWidget,
   "status-bar": StatusBarWidget,
