@@ -96,7 +96,9 @@ const stringifyValue = (value: unknown): string => {
     }
     return "(object)";
   }
-  return String(value);
+  if (typeof value === "bigint") return value.toString();
+  if (typeof value === "symbol") return value.toString();
+  return "(unknown)";
 };
 
 const coerceValue = (value: unknown): string => {
@@ -116,7 +118,9 @@ const coerceValue = (value: unknown): string => {
       return "";
     }
   }
-  return String(value);
+  if (typeof value === "bigint") return value.toString();
+  if (typeof value === "symbol") return value.toString();
+  return "";
 };
 
 export function parseTags(value: string): string[] {
