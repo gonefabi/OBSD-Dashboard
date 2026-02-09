@@ -37,7 +37,7 @@ export const TaskListWidget: React.FC<WidgetComponentProps<TaskListWidgetConfig>
       }
     };
 
-    load();
+    void load();
     return () => {
       cancelled = true;
     };
@@ -70,7 +70,7 @@ export const TaskListWidget: React.FC<WidgetComponentProps<TaskListWidgetConfig>
           <input
             type="checkbox"
             checked={task.completed}
-            onChange={() => toggleTask(task)}
+            onChange={() => void toggleTask(task)}
           />
           <span
             style={{

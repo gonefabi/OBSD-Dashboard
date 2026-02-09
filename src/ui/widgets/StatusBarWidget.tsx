@@ -49,7 +49,7 @@ export const StatusBarWidget: React.FC<WidgetComponentProps<StatusBarWidgetConfi
       }
     };
 
-    load();
+    void load();
     return () => {
       cancelled = true;
     };

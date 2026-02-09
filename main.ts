@@ -79,20 +79,30 @@ export default class DashboardPlugin extends Plugin {
 
     this.app.workspace.onLayoutReady(() => {
       const ready = this.waitForDataviewReady();
-      void ready.then(() => {
-        this.refreshViews();
-      });
-      if (this.data.openOnStartup) {
-        void ready.finally(() => {
-          const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_DASHBOARD)[0];
-          if (existing) {
-            this.app.workspace.revealLeaf(existing);
-            this.refreshViews();
-            return;
-          }
+      const openDashboard = () => {
+        const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_DASHBOARD)[0];
+        if (existing) {
+          this.app.workspace.revealLeaf(existing);
+        } else {
           void this.activateView();
+        }
+        this.refreshViews();
+      };
+
+      void ready.then(
+        () => {
           this.refreshViews();
-        });
+        },
+        (error) => console.error("Dataview readiness check failed", error)
+      );
+      if (this.data.openOnStartup) {
+        void ready.then(
+          () => openDashboard(),
+          (error) => {
+            console.error("Dataview readiness check failed", error);
+            openDashboard();
+          }
+        );
       }
     });
   }

@@ -102,7 +102,7 @@ export const StatsWidget: React.FC<WidgetComponentProps<StatsWidgetConfig>> = ({
       }
     };
 
-    load();
+    void load();
     return () => {
       cancelled = true;
     };

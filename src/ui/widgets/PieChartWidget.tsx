@@ -67,7 +67,7 @@ export const PieChartWidget: React.FC<WidgetComponentProps<PieChartWidgetConfig>
       }
     };
 
-    load();
+    void load();
     return () => {
       cancelled = true;
     };

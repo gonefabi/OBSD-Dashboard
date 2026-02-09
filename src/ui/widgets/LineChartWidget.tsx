@@ -68,7 +68,7 @@ export const LineChartWidget: React.FC<WidgetComponentProps<LineChartWidgetConfi
       }
     };
 
-    load();
+    void load();
     return () => {
       cancelled = true;
     };
