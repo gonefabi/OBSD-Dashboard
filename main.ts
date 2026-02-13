@@ -18,6 +18,7 @@ const DEFAULT_LAYOUT: DashboardLayout = {
   columns: 4,
   rowHeight: 90,
   gap: 12,
+  unit: "grid",
   widgets: [
     {
       id: "tasks-today",

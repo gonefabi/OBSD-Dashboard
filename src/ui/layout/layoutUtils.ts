@@ -12,6 +12,18 @@ export const cloneLayout = (layout: DashboardLayout): DashboardLayout =>
   JSON.parse(JSON.stringify(layout)) as DashboardLayout;
 
 export const normalizeLayout = (layout: DashboardLayout): DashboardLayout => {
+  if (layout.unit === "px") {
+    const widgets = layout.widgets.map((widget) => {
+      const w = Math.max(160, Math.floor(widget.w));
+      const h = Math.max(120, Math.floor(widget.h));
+      const x = Math.max(0, Math.floor(widget.x));
+      const y = Math.max(0, Math.floor(widget.y));
+      return { ...widget, x, y, w, h };
+    });
+
+    return { ...layout, widgets };
+  }
+
   const widgets = layout.widgets.map((widget) => {
     const w = Math.max(1, Math.floor(widget.w));
     const h = Math.max(1, Math.floor(widget.h));
@@ -28,6 +40,10 @@ export const resolveCollisions = (
   layout: DashboardLayout,
   movedId?: string
 ): DashboardLayout => {
+  if (layout.unit === "px") {
+    return layout;
+  }
+
   const widgets = layout.widgets.map((widget) => ({ ...widget }));
   const movedWidget = movedId ? widgets.find((widget) => widget.id === movedId) : undefined;
   const placed: WidgetConfig[] = [];
@@ -63,6 +79,9 @@ export const isDashboardLayout = (value: unknown): value is DashboardLayout => {
   if (!value || typeof value !== "object") return false;
   const layout = value as DashboardLayout;
   if (!isNumber(layout.columns) || !isNumber(layout.rowHeight) || !isNumber(layout.gap)) {
+    return false;
+  }
+  if (layout.unit && layout.unit !== "grid" && layout.unit !== "px") {
     return false;
   }
   if (!Array.isArray(layout.widgets)) return false;
