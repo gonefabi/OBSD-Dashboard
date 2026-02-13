@@ -68,7 +68,13 @@ export const LineChartWidget: React.FC<WidgetComponentProps<LineChartWidgetConfi
       }
     };
 
-    void load();
+    load().catch((error) => {
+      if (!cancelled) {
+        setError("Failed to load chart data");
+        setLoading(false);
+      }
+      console.error("Failed to load chart data", error);
+    });
     return () => {
       cancelled = true;
     };

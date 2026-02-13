@@ -49,7 +49,13 @@ export const StatusBarWidget: React.FC<WidgetComponentProps<StatusBarWidgetConfi
       }
     };
 
-    void load();
+    load().catch((error) => {
+      if (!cancelled) {
+        setError("Failed to load status");
+        setLoading(false);
+      }
+      console.error("Failed to load status", error);
+    });
     return () => {
       cancelled = true;
     };

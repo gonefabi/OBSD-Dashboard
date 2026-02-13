@@ -74,7 +74,9 @@ export default class DashboardPlugin extends Plugin {
       id: "open-dashboard",
       name: "Open dashboard",
       callback: () => {
-        void this.activateView();
+        this.activateView().catch((error) =>
+          console.error("Failed to activate dashboard view", error)
+        );
       },
     });
 
@@ -85,19 +87,21 @@ export default class DashboardPlugin extends Plugin {
         if (existing) {
           this.app.workspace.revealLeaf(existing);
         } else {
-          void this.activateView();
+          this.activateView().catch((error) =>
+            console.error("Failed to activate dashboard view", error)
+          );
         }
         this.refreshViews();
       };
 
-      void ready.then(
+      ready.then(
         () => {
           this.refreshViews();
         },
         (error) => console.error("Dataview readiness check failed", error)
       );
       if (this.data.openOnStartup) {
-        void ready.then(
+        ready.then(
           () => openDashboard(),
           (error) => {
             console.error("Dataview readiness check failed", error);

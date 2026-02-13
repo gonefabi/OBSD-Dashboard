@@ -20,7 +20,9 @@ export class DashboardSettingsTab extends PluginSettingTab {
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.getOpenOnStartup());
         toggle.onChange((value) => {
-          void this.plugin.setOpenOnStartup(value);
+          this.plugin
+            .setOpenOnStartup(value)
+            .catch((error) => console.error("Failed to update startup setting", error));
         });
       });
 
@@ -31,7 +33,7 @@ export class DashboardSettingsTab extends PluginSettingTab {
         button.setWarning();
         button.setButtonText("Reset layout");
         button.onClick(() => {
-          void this.plugin.resetLayout().then(
+          this.plugin.resetLayout().then(
             () => {
               new Notice("Dashboard layout reset");
             },
@@ -70,7 +72,7 @@ export class DashboardSettingsTab extends PluginSettingTab {
         .addText((text) => {
           text.setValue(preset.label ?? "");
           text.onChange((value) => {
-            void updatePreset(index, { label: value || preset.id }).catch((error) =>
+            updatePreset(index, { label: value || preset.id }).catch((error) =>
               console.error(error)
             );
           });
@@ -99,7 +101,7 @@ export class DashboardSettingsTab extends PluginSettingTab {
             patch.startOffsetDays = undefined;
             patch.endOffsetDays = undefined;
           }
-          void updatePreset(index, patch).catch((error) => console.error(error));
+          updatePreset(index, patch).catch((error) => console.error(error));
           this.display();
         });
       });
@@ -121,7 +123,7 @@ export class DashboardSettingsTab extends PluginSettingTab {
             );
             text.onChange((value) => {
               const nextValue = value.trim().length ? Number(value) : undefined;
-              void updatePreset(index, {
+              updatePreset(index, {
                 startOffsetDays: Number.isFinite(nextValue) ? nextValue : undefined,
               }).catch((error) => console.error(error));
             });
@@ -138,7 +140,7 @@ export class DashboardSettingsTab extends PluginSettingTab {
             );
             text.onChange((value) => {
               const nextValue = value.trim().length ? Number(value) : undefined;
-              void updatePreset(index, {
+              updatePreset(index, {
                 endOffsetDays: Number.isFinite(nextValue) ? nextValue : undefined,
               }).catch((error) => console.error(error));
             });
@@ -159,7 +161,7 @@ export class DashboardSettingsTab extends PluginSettingTab {
             );
             dropdown.onChange((value) => {
               const nextValue = isCalendarPreset(value) ? value : "this-week";
-              void updatePreset(index, { calendar: nextValue }).catch((error) =>
+              updatePreset(index, { calendar: nextValue }).catch((error) =>
                 console.error(error)
               );
             });
@@ -174,7 +176,7 @@ export class DashboardSettingsTab extends PluginSettingTab {
         button.setButtonText("Delete preset");
         button.onClick(() => {
           const next = presets.filter((_, idx) => idx !== index);
-          void updatePresets(next, true).catch((error) => console.error(error));
+          updatePresets(next, true).catch((error) => console.error(error));
         });
       });
     });
@@ -195,7 +197,7 @@ export class DashboardSettingsTab extends PluginSettingTab {
               endOffsetDays: 0,
             },
           ];
-          void updatePresets(next, true).catch((error) => console.error(error));
+          updatePresets(next, true).catch((error) => console.error(error));
         });
       });
   }
