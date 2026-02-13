@@ -130,5 +130,6 @@ export interface DashboardLayout {
   columns: number;
   rowHeight: number;
   gap: number;
+  unit?: "grid" | "px";
   widgets: WidgetConfig[];
 }

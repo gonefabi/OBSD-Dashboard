@@ -160,15 +160,10 @@ export class DataviewService implements IDataSource {
         tag?: unknown;
         path?: unknown;
         value?: unknown;
-        toString?: () => string;
       };
       if (typeof asAny.tag === "string") return asAny.tag;
       if (typeof asAny.path === "string") return asAny.path;
       if (typeof asAny.value === "string") return asAny.value;
-      if (typeof asAny.toString === "function") {
-        const str = asAny.toString();
-        if (str && str !== "[object Object]") return str;
-      }
       try {
         const json = JSON.stringify(tag);
         if (json && json !== "{}") return json;
@@ -180,11 +175,27 @@ export class DataviewService implements IDataSource {
   }
 
   private formatMaybeDate(value: unknown): string | undefined {
-    if (!value) return undefined;
+    if (value === null || value === undefined) return undefined;
     if (typeof value === "string") return value;
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
     if (value instanceof Date) return value.toISOString();
-    if (typeof (value as { toString?: () => string }).toString === "function") {
-      return (value as { toString: () => string }).toString();
+    if (typeof value === "object") {
+      const asAny = value as {
+        toISO?: () => unknown;
+        toISODate?: () => unknown;
+        value?: unknown;
+      };
+      if (typeof asAny.toISO === "function") {
+        const iso = asAny.toISO();
+        if (typeof iso === "string" && iso.length > 0) return iso;
+      }
+      if (typeof asAny.toISODate === "function") {
+        const isoDate = asAny.toISODate();
+        if (typeof isoDate === "string" && isoDate.length > 0) return isoDate;
+      }
+      if (typeof asAny.value === "string" && asAny.value.length > 0) {
+        return asAny.value;
+      }
     }
     return undefined;
   }

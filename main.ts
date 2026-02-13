@@ -18,6 +18,7 @@ const DEFAULT_LAYOUT: DashboardLayout = {
   columns: 4,
   rowHeight: 90,
   gap: 12,
+  unit: "grid",
   widgets: [
     {
       id: "tasks-today",
@@ -73,26 +74,40 @@ export default class DashboardPlugin extends Plugin {
       id: "open-dashboard",
       name: "Open dashboard",
       callback: () => {
-        void this.activateView();
+        this.activateView().catch((error) =>
+          console.error("Failed to activate dashboard view", error)
+        );
       },
     });
 
     this.app.workspace.onLayoutReady(() => {
       const ready = this.waitForDataviewReady();
-      void ready.then(() => {
+      const openDashboard = () => {
+        const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_DASHBOARD)[0];
+        if (existing) {
+          this.app.workspace.revealLeaf(existing);
+        } else {
+          this.activateView().catch((error) =>
+            console.error("Failed to activate dashboard view", error)
+          );
+        }
         this.refreshViews();
-      });
-      if (this.data.openOnStartup) {
-        void ready.finally(() => {
-          const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_DASHBOARD)[0];
-          if (existing) {
-            this.app.workspace.revealLeaf(existing);
-            this.refreshViews();
-            return;
-          }
-          void this.activateView();
+      };
+
+      ready.then(
+        () => {
           this.refreshViews();
-        });
+        },
+        (error) => console.error("Dataview readiness check failed", error)
+      );
+      if (this.data.openOnStartup) {
+        ready.then(
+          () => openDashboard(),
+          (error) => {
+            console.error("Dataview readiness check failed", error);
+            openDashboard();
+          }
+        );
       }
     });
   }

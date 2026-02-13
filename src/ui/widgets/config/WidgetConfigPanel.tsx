@@ -10,7 +10,6 @@ import {
   ensureChartSeries,
   ensureStatFilters,
   ensureTaskFilters,
-  getChartDataMode,
   normalizeTimeRange,
   rangeHasBounds,
   resolveTimeRange,
@@ -40,6 +39,51 @@ import type {
 export type WidgetConfigPanelProps = {
   config: WidgetConfig;
   onUpdate: (updater: (widget: WidgetConfig) => WidgetConfig) => void;
+};
+
+const toStatsCompareMode = (value: string): StatsCompareMode => {
+  if (value === "previous-period") return "previous-period";
+  if (value === "fixed-period") return "fixed-period";
+  if (value === "filter") return "filter";
+  return "none";
+};
+
+const toStatsCompareDisplay = (value: string): StatsCompareDisplay =>
+  value === "percent" ? "percent" : "number";
+
+const toStatsCompareBasis = (value: string): StatsCompareBasis =>
+  value === "per-day" ? "per-day" : "total";
+
+const toStatsValueAlign = (value: string): StatsValueAlign => {
+  if (value === "left") return "left";
+  if (value === "right") return "right";
+  return "center";
+};
+
+const toStatsIconPosition = (value: string): StatsIconPosition =>
+  value === "right" ? "right" : "left";
+
+const toChartDataMode = (value: string): ChartDataMode =>
+  value === "series" ? "series" : "group";
+
+const toChartCountMode = (value: string): ChartCountMode =>
+  value === "tasks" ? "tasks" : "files";
+
+const toChartGroupBy = (value: string): "tag" | "folder" | "file" => {
+  if (value === "folder") return "folder";
+  if (value === "file") return "file";
+  return "tag";
+};
+
+const toLegendDisplay = (value: string): LegendDisplay =>
+  value === "hover" ? "hover" : "list";
+
+const toLegendPosition = (value: string): LegendPosition => {
+  if (value === "left") return "left";
+  if (value === "right") return "right";
+  if (value === "top") return "top";
+  if (value === "bottom") return "bottom";
+  return "auto";
 };
 
 type TimeRangeEditorProps = {
@@ -733,7 +777,7 @@ export const WidgetConfigPanel: React.FC<WidgetConfigPanelProps> = ({
           <select
             value={compareMode}
             onChange={(event) => {
-              const value = event.target.value as StatsCompareMode;
+              const value = toStatsCompareMode(event.target.value);
               onUpdate((widget) => {
                 if (widget.type !== "stats") return widget;
                 return {
@@ -844,7 +888,7 @@ export const WidgetConfigPanel: React.FC<WidgetConfigPanelProps> = ({
           <select
             value={compareDisplay}
             onChange={(event) => {
-              const value = event.target.value as StatsCompareDisplay;
+              const value = toStatsCompareDisplay(event.target.value);
               onUpdate((widget) => {
                 if (widget.type !== "stats") return widget;
                 return {
@@ -881,7 +925,7 @@ export const WidgetConfigPanel: React.FC<WidgetConfigPanelProps> = ({
           <select
             value={compareBasis}
             onChange={(event) => {
-              const value = event.target.value as StatsCompareBasis;
+              const value = toStatsCompareBasis(event.target.value);
               onUpdate((widget) => {
                 if (widget.type !== "stats") return widget;
                 return {
@@ -914,7 +958,7 @@ export const WidgetConfigPanel: React.FC<WidgetConfigPanelProps> = ({
           <select
             value={valueAlign}
             onChange={(event) => {
-              const value = event.target.value as StatsValueAlign;
+              const value = toStatsValueAlign(event.target.value);
               onUpdate((widget) => {
                 if (widget.type !== "stats") return widget;
                 return {
@@ -952,7 +996,7 @@ export const WidgetConfigPanel: React.FC<WidgetConfigPanelProps> = ({
           <select
             value={iconPosition}
             onChange={(event) => {
-              const value = event.target.value as StatsIconPosition;
+              const value = toStatsIconPosition(event.target.value);
               onUpdate((widget) => {
                 if (widget.type !== "stats") return widget;
                 return {
@@ -1164,7 +1208,7 @@ export const WidgetConfigPanel: React.FC<WidgetConfigPanelProps> = ({
           <select
             value={chartMode}
             onChange={(event) => {
-              const value = event.target.value as ChartDataMode;
+              const value = toChartDataMode(event.target.value);
               onUpdate((widget) => {
                 if (widget.type !== "pie-chart" && widget.type !== "line-chart") return widget;
                 return {
@@ -1185,7 +1229,7 @@ export const WidgetConfigPanel: React.FC<WidgetConfigPanelProps> = ({
               <select
                 value={groupBy}
                 onChange={(event) => {
-                  const value = event.target.value as ChartDataMode;
+                  const value = toChartGroupBy(event.target.value);
                   onUpdate((widget) => {
                     if (widget.type !== "pie-chart" && widget.type !== "line-chart") {
                       return widget;
@@ -1206,7 +1250,7 @@ export const WidgetConfigPanel: React.FC<WidgetConfigPanelProps> = ({
               <select
                 value={countMode}
                 onChange={(event) => {
-                  const value = event.target.value as ChartCountMode;
+                  const value = toChartCountMode(event.target.value);
                   onUpdate((widget) => {
                     if (widget.type !== "pie-chart" && widget.type !== "line-chart") {
                       return widget;
@@ -1401,7 +1445,7 @@ export const WidgetConfigPanel: React.FC<WidgetConfigPanelProps> = ({
           <select
             value={legendDisplay}
             onChange={(event) => {
-              const value = event.target.value as LegendDisplay;
+              const value = toLegendDisplay(event.target.value);
               onUpdate((widget) => {
                 if (widget.type !== "pie-chart" && widget.type !== "line-chart") {
                   return widget;
@@ -1422,7 +1466,7 @@ export const WidgetConfigPanel: React.FC<WidgetConfigPanelProps> = ({
           <select
             value={legendPosition}
             onChange={(event) => {
-              const value = event.target.value as LegendPosition;
+              const value = toLegendPosition(event.target.value);
               onUpdate((widget) => {
                 if (widget.type !== "pie-chart" && widget.type !== "line-chart") {
                   return widget;

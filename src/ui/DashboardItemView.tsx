@@ -48,7 +48,9 @@ export class DashboardItemView extends ItemView {
       item.setTitle(isEditing ? "Exit edit mode" : "Edit dashboard");
       item.setIcon(isEditing ? "checkmark" : "pencil");
       item.onClick(() => {
-        void this.plugin.toggleEditable();
+        this.plugin
+          .toggleEditable()
+          .catch((error) => console.error("Failed to toggle edit mode", error));
       });
     });
 
@@ -56,7 +58,9 @@ export class DashboardItemView extends ItemView {
       item.setTitle("Reset dashboard layout");
       item.setIcon("rotate-ccw");
       item.onClick(() => {
-        void this.plugin.resetLayout();
+        this.plugin
+          .resetLayout()
+          .catch((error) => console.error("Failed to reset dashboard layout", error));
       });
     });
   }
@@ -87,7 +91,9 @@ export class DashboardItemView extends ItemView {
         timePresets: this.plugin.getTimePresets(),
         editable: this.plugin.getEditable(),
         onLayoutChange: (layout: DashboardLayout) => {
-          void this.plugin.setLayout(layout);
+          this.plugin
+            .setLayout(layout)
+            .catch((error) => console.error("Failed to persist dashboard layout", error));
         },
       })
     );
