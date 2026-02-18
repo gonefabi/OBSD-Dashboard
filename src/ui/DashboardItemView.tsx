@@ -14,6 +14,7 @@ export type DashboardPluginApi = {
   getLayout(): DashboardLayout;
   getTimePresets(): TimePreset[];
   getEditable(): boolean;
+  getAutoAlign(): boolean;
   setLayout(layout: DashboardLayout): Promise<void>;
   toggleEditable(): Promise<void>;
   resetLayout(): Promise<void>;
@@ -48,7 +49,7 @@ export class DashboardItemView extends ItemView {
       item.setTitle(isEditing ? "Exit edit mode" : "Edit dashboard");
       item.setIcon(isEditing ? "checkmark" : "pencil");
       item.onClick(() => {
-        this.plugin
+        void this.plugin
           .toggleEditable()
           .catch((error) => console.error("Failed to toggle edit mode", error));
       });
@@ -58,7 +59,7 @@ export class DashboardItemView extends ItemView {
       item.setTitle("Reset dashboard layout");
       item.setIcon("rotate-ccw");
       item.onClick(() => {
-        this.plugin
+        void this.plugin
           .resetLayout()
           .catch((error) => console.error("Failed to reset dashboard layout", error));
       });
@@ -90,8 +91,9 @@ export class DashboardItemView extends ItemView {
         layout: this.plugin.getLayout(),
         timePresets: this.plugin.getTimePresets(),
         editable: this.plugin.getEditable(),
+        autoAlign: this.plugin.getAutoAlign(),
         onLayoutChange: (layout: DashboardLayout) => {
-          this.plugin
+          void this.plugin
             .setLayout(layout)
             .catch((error) => console.error("Failed to persist dashboard layout", error));
         },

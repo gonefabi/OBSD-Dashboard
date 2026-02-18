@@ -81,7 +81,8 @@ const increment = (map: Map<string, number>, key: string) => {
 const stringifyValue = (value: unknown): string => {
   if (value === null || value === undefined || value === "") return "(empty)";
   if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (typeof value === "number") return value.toString();
+  if (typeof value === "boolean") return value ? "true" : "false";
   if (value instanceof Date) return value.toISOString();
   if (value && typeof value === "object") {
     const asAny = value as { name?: unknown; path?: unknown; value?: unknown };
@@ -104,7 +105,8 @@ const stringifyValue = (value: unknown): string => {
 const coerceValue = (value: unknown): string => {
   if (value === null || value === undefined) return "";
   if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (typeof value === "number") return value.toString();
+  if (typeof value === "boolean") return value ? "true" : "false";
   if (value instanceof Date) return value.toISOString();
   if (value && typeof value === "object") {
     const asAny = value as { name?: unknown; path?: unknown; value?: unknown };

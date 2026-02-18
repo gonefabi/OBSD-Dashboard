@@ -67,7 +67,7 @@ export const PieChartWidget: React.FC<WidgetComponentProps<PieChartWidgetConfig>
       }
     };
 
-    load().catch((error) => {
+    void load().catch((error) => {
       if (!cancelled) {
         setError("Failed to load chart data");
         setLoading(false);

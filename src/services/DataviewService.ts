@@ -153,7 +153,8 @@ export class DataviewService implements IDataSource {
 
   private stringifyTag(tag: unknown): string | null {
     if (typeof tag === "string") return tag;
-    if (typeof tag === "number" || typeof tag === "boolean") return String(tag);
+    if (typeof tag === "number") return tag.toString();
+    if (typeof tag === "boolean") return tag ? "true" : "false";
     if (tag instanceof Date) return tag.toISOString();
     if (tag && typeof tag === "object") {
       const asAny = tag as {
@@ -177,7 +178,8 @@ export class DataviewService implements IDataSource {
   private formatMaybeDate(value: unknown): string | undefined {
     if (value === null || value === undefined) return undefined;
     if (typeof value === "string") return value;
-    if (typeof value === "number" || typeof value === "boolean") return String(value);
+    if (typeof value === "number") return value.toString();
+    if (typeof value === "boolean") return value ? "true" : "false";
     if (value instanceof Date) return value.toISOString();
     if (typeof value === "object") {
       const asAny = value as {

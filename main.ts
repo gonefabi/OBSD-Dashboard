@@ -10,6 +10,7 @@ import { DashboardItemView, VIEW_TYPE_DASHBOARD } from "./src/ui/DashboardItemVi
 interface DashboardPluginData {
   layout: DashboardLayout;
   editable: boolean;
+  autoAlign: boolean;
   openOnStartup: boolean;
   timePresets: TimePreset[];
 }
@@ -50,6 +51,7 @@ const DEFAULT_LAYOUT: DashboardLayout = {
 const DEFAULT_DATA: DashboardPluginData = {
   layout: cloneLayout(DEFAULT_LAYOUT),
   editable: false,
+  autoAlign: true,
   openOnStartup: false,
   timePresets: cloneTimePresets(DEFAULT_TIME_PRESETS),
 };
@@ -59,8 +61,8 @@ export default class DashboardPlugin extends Plugin {
   private dataSource!: IDataSource;
 
   async onload(): Promise<void> {
-    const loaded = (await this.loadData()) as DashboardPluginData | null;
-    this.data = this.normalizeData(loaded);
+    const loaded = await this.loadData();
+    this.data = this.normalizeData(this.coerceLoadedData(loaded));
     this.dataSource = new DataviewService(this.app);
 
     this.registerView(
@@ -74,7 +76,7 @@ export default class DashboardPlugin extends Plugin {
       id: "open-dashboard",
       name: "Open dashboard",
       callback: () => {
-        this.activateView().catch((error) =>
+        void this.activateView().catch((error) =>
           console.error("Failed to activate dashboard view", error)
         );
       },
@@ -87,21 +89,21 @@ export default class DashboardPlugin extends Plugin {
         if (existing) {
           this.app.workspace.revealLeaf(existing);
         } else {
-          this.activateView().catch((error) =>
+          void this.activateView().catch((error) =>
             console.error("Failed to activate dashboard view", error)
           );
         }
         this.refreshViews();
       };
 
-      ready.then(
+      void ready.then(
         () => {
           this.refreshViews();
         },
         (error) => console.error("Dataview readiness check failed", error)
       );
       if (this.data.openOnStartup) {
-        ready.then(
+        void ready.then(
           () => openDashboard(),
           (error) => {
             console.error("Dataview readiness check failed", error);
@@ -134,8 +136,18 @@ export default class DashboardPlugin extends Plugin {
     return this.data.editable;
   }
 
+  getAutoAlign(): boolean {
+    return this.data.autoAlign;
+  }
+
   async setEditable(value: boolean): Promise<void> {
     this.data.editable = value;
+    await this.saveData(this.data);
+    this.refreshViews();
+  }
+
+  async setAutoAlign(value: boolean): Promise<void> {
+    this.data.autoAlign = value;
     await this.saveData(this.data);
     this.refreshViews();
   }
@@ -221,9 +233,27 @@ export default class DashboardPlugin extends Plugin {
     return {
       layout: base,
       editable: typeof loaded.editable === "boolean" ? loaded.editable : fallback.editable,
+      autoAlign: typeof loaded.autoAlign === "boolean" ? loaded.autoAlign : fallback.autoAlign,
       openOnStartup:
         typeof loaded.openOnStartup === "boolean" ? loaded.openOnStartup : fallback.openOnStartup,
       timePresets: normalizeTimePresets(loaded.timePresets),
+    };
+  }
+
+  private coerceLoadedData(value: unknown): DashboardPluginData | null {
+    if (!value || typeof value !== "object") return null;
+    const candidate = value as Partial<DashboardPluginData>;
+    if (!candidate.layout || !isDashboardLayout(candidate.layout)) return null;
+    return {
+      layout: candidate.layout,
+      editable: typeof candidate.editable === "boolean" ? candidate.editable : DEFAULT_DATA.editable,
+      autoAlign:
+        typeof candidate.autoAlign === "boolean" ? candidate.autoAlign : DEFAULT_DATA.autoAlign,
+      openOnStartup:
+        typeof candidate.openOnStartup === "boolean"
+          ? candidate.openOnStartup
+          : DEFAULT_DATA.openOnStartup,
+      timePresets: Array.isArray(candidate.timePresets) ? candidate.timePresets : [],
     };
   }
 

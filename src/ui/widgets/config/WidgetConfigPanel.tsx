@@ -181,7 +181,7 @@ const TimeRangeEditor: React.FC<TimeRangeEditorProps> = ({
   const hasPreset = presets.some((preset) => preset.id === presetId);
   const selectablePresets = hasPreset
     ? presets
-    : [{ id: presetId, label: `Unknown (${presetId})`, type: "all" as const }, ...presets];
+    : [{ id: presetId, label: `Unknown (${presetId})`, type: "all" }, ...presets];
 
   const updateRange = (nextPreset: string) => {
     onChange({

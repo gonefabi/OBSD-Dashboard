@@ -49,7 +49,7 @@ export const StatusBarWidget: React.FC<WidgetComponentProps<StatusBarWidgetConfi
       }
     };
 
-    load().catch((error) => {
+    void load().catch((error) => {
       if (!cancelled) {
         setError("Failed to load status");
         setLoading(false);
@@ -72,7 +72,7 @@ export const StatusBarWidget: React.FC<WidgetComponentProps<StatusBarWidgetConfi
   return (
     <div className="obsd-status">
       <div className="obsd-status-value">
-        {targetValue > 0 ? `${value} / ${targetValue}` : String(value)}
+        {targetValue > 0 ? `${value.toString()} / ${targetValue.toString()}` : value.toString()}
       </div>
       <div className="obsd-status-bar">
         <div
