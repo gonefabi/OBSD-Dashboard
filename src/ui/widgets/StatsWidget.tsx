@@ -102,7 +102,7 @@ export const StatsWidget: React.FC<WidgetComponentProps<StatsWidgetConfig>> = ({
       }
     };
 
-    load().catch((error) => {
+    void load().catch((error) => {
       if (!cancelled) {
         setError("Failed to load stats");
         setLoading(false);

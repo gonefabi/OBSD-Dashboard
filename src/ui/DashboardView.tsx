@@ -29,6 +29,7 @@ export interface DashboardViewProps {
   layout: DashboardLayout;
   timePresets?: TimePreset[];
   editable?: boolean;
+  autoAlign?: boolean;
   onLayoutChange?: (layout: DashboardLayout) => void;
 }
 
@@ -47,6 +48,7 @@ type DragState = {
   originX: number;
   originY: number;
   originW: number;
+  originH: number;
   lastX: number;
   lastY: number;
 };
@@ -69,9 +71,260 @@ const MIN_WIDGET_WIDTH = 160;
 const MIN_WIDGET_HEIGHT = 120;
 const FALLBACK_WIDGET_WIDTH = 320;
 const FALLBACK_WIDGET_HEIGHT = 220;
+const SNAP_THRESHOLD = 24;
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(Math.max(value, min), max);
+
+type Rect = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+};
+
+const rangesOverlap = (
+  startA: number,
+  sizeA: number,
+  startB: number,
+  sizeB: number
+): boolean => startA < startB + sizeB && startA + sizeA > startB;
+
+const rectsOverlap = (a: Rect, b: Rect): boolean =>
+  rangesOverlap(a.x, a.w, b.x, b.w) && rangesOverlap(a.y, a.h, b.y, b.h);
+
+const toRect = (widget: WidgetConfig): Rect => ({
+  x: widget.x,
+  y: widget.y,
+  w: widget.w,
+  h: widget.h,
+});
+
+const getOtherRects = (layout: DashboardLayout, id: string): Rect[] =>
+  layout.widgets.filter((widget) => widget.id !== id).map((widget) => toRect(widget));
+
+const hasOverlap = (candidate: Rect, others: Rect[]): boolean =>
+  others.some((other) => rectsOverlap(candidate, other));
+
+const uniqueRounded = (values: number[]): number[] => {
+  const seen = new Set<number>();
+  const result: number[] = [];
+  for (const value of values) {
+    const rounded = Math.round(value);
+    if (seen.has(rounded)) continue;
+    seen.add(rounded);
+    result.push(rounded);
+  }
+  return result;
+};
+
+const snapAxis = (value: number, candidates: number[], threshold: number): number => {
+  let snapped = value;
+  let bestDistance = threshold + 1;
+
+  for (const candidate of candidates) {
+    const distance = Math.abs(candidate - value);
+    if (distance <= threshold && distance < bestDistance) {
+      bestDistance = distance;
+      snapped = candidate;
+    }
+  }
+
+  return snapped;
+};
+
+const snapDragPosition = (
+  rawX: number,
+  rawY: number,
+  moving: Rect,
+  others: Rect[],
+  bounds: ContainerMetrics,
+  gap: number
+): { x: number; y: number } => {
+  const minX = bounds.padding;
+  const maxX = Math.max(minX, bounds.width - bounds.padding - moving.w);
+
+  const xCandidates = [minX, maxX];
+  const yCandidates = [bounds.padding];
+
+  for (const other of others) {
+    const verticalRelation =
+      rangesOverlap(rawY, moving.h, other.y, other.h) ||
+      Math.abs(rawY + moving.h / 2 - (other.y + other.h / 2)) <= SNAP_THRESHOLD * 2;
+    const horizontalRelation =
+      rangesOverlap(rawX, moving.w, other.x, other.w) ||
+      Math.abs(rawX + moving.w / 2 - (other.x + other.w / 2)) <= SNAP_THRESHOLD * 2;
+
+    if (verticalRelation) {
+      xCandidates.push(other.x);
+      xCandidates.push(other.x + other.w - moving.w);
+      xCandidates.push(other.x + other.w + gap);
+      xCandidates.push(other.x - moving.w - gap);
+      xCandidates.push(other.x + (other.w - moving.w) / 2);
+    }
+
+    if (horizontalRelation) {
+      yCandidates.push(other.y);
+      yCandidates.push(other.y + other.h - moving.h);
+      yCandidates.push(other.y + other.h + gap);
+      yCandidates.push(other.y - moving.h - gap);
+      yCandidates.push(other.y + (other.h - moving.h) / 2);
+    }
+  }
+
+  const snappedX = clamp(
+    snapAxis(rawX, uniqueRounded(xCandidates), SNAP_THRESHOLD),
+    minX,
+    maxX
+  );
+  const snappedY = Math.max(
+    bounds.padding,
+    snapAxis(rawY, uniqueRounded(yCandidates), SNAP_THRESHOLD)
+  );
+
+  return { x: snappedX, y: snappedY };
+};
+
+const resolveDragCollision = (
+  candidate: Rect,
+  previous: Rect,
+  others: Rect[],
+  bounds: ContainerMetrics,
+  gap: number
+): Rect => {
+  if (!hasOverlap(candidate, others)) return candidate;
+
+  const minX = bounds.padding;
+  const maxX = Math.max(minX, bounds.width - bounds.padding - candidate.w);
+  const xCandidates = [candidate.x];
+  const yCandidates = [candidate.y];
+
+  for (const other of others) {
+    if (!rectsOverlap(candidate, other)) continue;
+    xCandidates.push(other.x - candidate.w - gap);
+    xCandidates.push(other.x + other.w + gap);
+    yCandidates.push(other.y - candidate.h - gap);
+    yCandidates.push(other.y + other.h + gap);
+  }
+
+  const uniqueX = uniqueRounded(xCandidates).map((value) => clamp(value, minX, maxX));
+  const uniqueY = uniqueRounded(yCandidates).map((value) => Math.max(bounds.padding, value));
+
+  const options: Rect[] = [];
+  for (const x of uniqueX) {
+    options.push({ ...candidate, x, y: candidate.y });
+  }
+  for (const y of uniqueY) {
+    options.push({ ...candidate, x: candidate.x, y });
+  }
+  for (const x of uniqueX) {
+    for (const y of uniqueY) {
+      options.push({ ...candidate, x, y });
+    }
+  }
+
+  let best: Rect | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const option of options) {
+    if (hasOverlap(option, others)) continue;
+    const distance = Math.abs(option.x - candidate.x) + Math.abs(option.y - candidate.y);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = option;
+    }
+  }
+
+  return best ?? previous;
+};
+
+const snapResizeSize = (
+  rawW: number,
+  rawH: number,
+  originX: number,
+  originY: number,
+  others: Rect[],
+  gap: number,
+  maxW: number
+): { w: number; h: number } => {
+  const widthCandidates = [rawW];
+  const heightCandidates = [rawH];
+
+  for (const other of others) {
+    const verticalOverlap = rangesOverlap(originY, rawH, other.y, other.h);
+    const horizontalOverlap = rangesOverlap(originX, rawW, other.x, other.w);
+
+    if (verticalOverlap) {
+      widthCandidates.push(other.w);
+      widthCandidates.push(other.x - gap - originX);
+      widthCandidates.push(other.x + other.w - originX);
+      widthCandidates.push(other.x + other.w + gap - originX);
+    }
+
+    if (horizontalOverlap) {
+      heightCandidates.push(other.h);
+      heightCandidates.push(other.y - gap - originY);
+      heightCandidates.push(other.y + other.h - originY);
+      heightCandidates.push(other.y + other.h + gap - originY);
+    }
+  }
+
+  const snappedW = clamp(
+    snapAxis(rawW, uniqueRounded(widthCandidates), SNAP_THRESHOLD),
+    MIN_WIDGET_WIDTH,
+    maxW
+  );
+  const snappedH = Math.max(
+    MIN_WIDGET_HEIGHT,
+    snapAxis(rawH, uniqueRounded(heightCandidates), SNAP_THRESHOLD)
+  );
+
+  return { w: snappedW, h: snappedH };
+};
+
+const resolveResizeCollision = (
+  candidate: Rect,
+  previous: Rect,
+  others: Rect[],
+  bounds: ContainerMetrics,
+  gap: number
+): Rect => {
+  let next = { ...candidate };
+  const maxW = Math.max(MIN_WIDGET_WIDTH, bounds.width - bounds.padding - candidate.x);
+
+  for (let pass = 0; pass < 3; pass += 1) {
+    if (!hasOverlap(next, others)) return next;
+
+    let limited = false;
+    let maxAllowedW = next.w;
+    let maxAllowedH = next.h;
+
+    for (const other of others) {
+      if (!rectsOverlap(next, other)) continue;
+
+      const verticalOverlap = rangesOverlap(next.y, next.h, other.y, other.h);
+      const horizontalOverlap = rangesOverlap(next.x, next.w, other.x, other.w);
+
+      if (verticalOverlap && other.x >= next.x) {
+        maxAllowedW = Math.min(maxAllowedW, other.x - gap - next.x);
+        limited = true;
+      }
+
+      if (horizontalOverlap && other.y >= next.y) {
+        maxAllowedH = Math.min(maxAllowedH, other.y - gap - next.y);
+        limited = true;
+      }
+    }
+
+    const clampedW = clamp(Math.round(maxAllowedW), MIN_WIDGET_WIDTH, maxW);
+    const clampedH = Math.max(MIN_WIDGET_HEIGHT, Math.round(maxAllowedH));
+
+    if (clampedW === next.w && clampedH === next.h && !limited) break;
+    next = { ...next, w: clampedW, h: clampedH };
+  }
+
+  if (!hasOverlap(next, others)) return next;
+  return previous;
+};
 
 const useContainerMetrics = (
   ref: React.RefObject<HTMLDivElement>,
@@ -157,6 +410,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   layout,
   timePresets,
   editable = false,
+  autoAlign = true,
   onLayoutChange,
 }) => {
   const presetList = timePresets && timePresets.length > 0 ? timePresets : DEFAULT_TIME_PRESETS;
@@ -404,6 +658,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       originX: widget.x,
       originY: widget.y,
       originW: widget.w,
+      originH: widget.h,
       lastX: widget.x,
       lastY: widget.y,
     };
@@ -454,25 +709,63 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   );
 
   const handleMove = React.useCallback(
-    (clientX: number, clientY: number) => {
+    (clientX: number, clientY: number, ctrlPressed: boolean) => {
       const activeDrag = dragState.current;
       const activeResize = resizeState.current;
       const bounds = metricsRef.current;
       if (!bounds) return;
+      const liveLayout = layoutRef.current;
+      const gap = liveLayout.gap;
+      const shouldSnap = autoAlign && !ctrlPressed;
 
       if (activeDrag) {
         const deltaX = clientX - activeDrag.startX;
         const deltaY = clientY - activeDrag.startY;
         const minX = bounds.padding;
         const maxX = Math.max(minX, bounds.width - bounds.padding - activeDrag.originW);
-        const nextX = clamp(Math.round(activeDrag.originX + deltaX), minX, maxX);
-        const nextY = Math.max(bounds.padding, Math.round(activeDrag.originY + deltaY));
+        const rawX = clamp(Math.round(activeDrag.originX + deltaX), minX, maxX);
+        const rawY = Math.max(bounds.padding, Math.round(activeDrag.originY + deltaY));
+        const others = getOtherRects(liveLayout, activeDrag.id);
 
-        if (nextX === activeDrag.lastX && nextY === activeDrag.lastY) return;
-        activeDrag.lastX = nextX;
-        activeDrag.lastY = nextY;
+        const snapped = shouldSnap
+          ? snapDragPosition(
+              rawX,
+              rawY,
+              {
+                x: rawX,
+                y: rawY,
+                w: activeDrag.originW,
+                h: activeDrag.originH,
+              },
+              others,
+              bounds,
+              gap
+            )
+          : { x: rawX, y: rawY };
 
-        updateWidget(activeDrag.id, (widget) => ({ ...widget, x: nextX, y: nextY }), false);
+        const proposed: Rect = {
+          x: snapped.x,
+          y: snapped.y,
+          w: activeDrag.originW,
+          h: activeDrag.originH,
+        };
+        const previous: Rect = {
+          x: activeDrag.lastX,
+          y: activeDrag.lastY,
+          w: activeDrag.originW,
+          h: activeDrag.originH,
+        };
+        const resolved = resolveDragCollision(proposed, previous, others, bounds, gap);
+
+        if (resolved.x === activeDrag.lastX && resolved.y === activeDrag.lastY) return;
+        activeDrag.lastX = resolved.x;
+        activeDrag.lastY = resolved.y;
+
+        updateWidget(
+          activeDrag.id,
+          (widget) => ({ ...widget, x: resolved.x, y: resolved.y }),
+          false
+        );
         return;
       }
 
@@ -482,22 +775,53 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         const minW = MIN_WIDGET_WIDTH;
         const minH = MIN_WIDGET_HEIGHT;
         const maxW = Math.max(minW, bounds.width - bounds.padding - activeResize.originX);
-        const nextW = clamp(Math.round(activeResize.originW + deltaX), minW, maxW);
-        const nextH = Math.max(minH, Math.round(activeResize.originH + deltaY));
+        const rawW = clamp(Math.round(activeResize.originW + deltaX), minW, maxW);
+        const rawH = Math.max(minH, Math.round(activeResize.originH + deltaY));
+        const others = getOtherRects(liveLayout, activeResize.id);
 
-        if (nextW === activeResize.lastW && nextH === activeResize.lastH) return;
-        activeResize.lastW = nextW;
-        activeResize.lastH = nextH;
+        const snappedSize = shouldSnap
+          ? snapResizeSize(
+              rawW,
+              rawH,
+              activeResize.originX,
+              activeResize.originY,
+              others,
+              gap,
+              maxW
+            )
+          : { w: rawW, h: rawH };
 
-        updateWidget(activeResize.id, (widget) => ({ ...widget, w: nextW, h: nextH }), false);
+        const proposed: Rect = {
+          x: activeResize.originX,
+          y: activeResize.originY,
+          w: snappedSize.w,
+          h: snappedSize.h,
+        };
+        const previous: Rect = {
+          x: activeResize.originX,
+          y: activeResize.originY,
+          w: activeResize.lastW,
+          h: activeResize.lastH,
+        };
+        const resolved = resolveResizeCollision(proposed, previous, others, bounds, gap);
+
+        if (resolved.w === activeResize.lastW && resolved.h === activeResize.lastH) return;
+        activeResize.lastW = resolved.w;
+        activeResize.lastH = resolved.h;
+
+        updateWidget(
+          activeResize.id,
+          (widget) => ({ ...widget, w: resolved.w, h: resolved.h }),
+          false
+        );
       }
     },
-    [updateWidget]
+    [autoAlign, updateWidget]
   );
 
   const handleMouseMove = React.useCallback(
     (event: MouseEvent) => {
-      handleMove(event.clientX, event.clientY);
+      handleMove(event.clientX, event.clientY, event.ctrlKey);
     },
     [handleMove]
   );
@@ -606,8 +930,8 @@ const WidgetFrame: React.FC<{
   const Component = WidgetRegistry[config.type];
   const handleHeaderMouseDown = (event: DragStartEvent) => {
     if (!editable) return;
-    const target = event.target as HTMLElement | null;
-    if (target?.closest("button, input, textarea, select, a")) return;
+    const target = event.target;
+    if (target instanceof Element && target.closest("button, input, textarea, select, a")) return;
     onDragStart(event, config);
   };
   const style: React.CSSProperties = {
@@ -726,7 +1050,9 @@ const AddWidgetTile: React.FC<{
 
     const handler = (event: MouseEvent) => {
       if (!tileRef.current) return;
-      if (tileRef.current.contains(event.target as Node)) return;
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (tileRef.current.contains(target)) return;
       setOpen(false);
     };
 

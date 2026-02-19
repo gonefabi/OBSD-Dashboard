@@ -37,7 +37,7 @@ export const TaskListWidget: React.FC<WidgetComponentProps<TaskListWidgetConfig>
       }
     };
 
-    load().catch((error) => {
+    void load().catch((error) => {
       if (!cancelled) {
         setError("Failed to load tasks");
         setLoading(false);
@@ -77,7 +77,7 @@ export const TaskListWidget: React.FC<WidgetComponentProps<TaskListWidgetConfig>
             type="checkbox"
             checked={task.completed}
             onChange={() => {
-              toggleTask(task).catch((error) =>
+              void toggleTask(task).catch((error) =>
                 console.error("Failed to toggle task", error)
               );
             }}

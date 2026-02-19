@@ -20,9 +20,23 @@ export class DashboardSettingsTab extends PluginSettingTab {
       .addToggle((toggle) => {
         toggle.setValue(this.plugin.getOpenOnStartup());
         toggle.onChange((value) => {
-          this.plugin
+          void this.plugin
             .setOpenOnStartup(value)
             .catch((error) => console.error("Failed to update startup setting", error));
+        });
+      });
+
+    new Setting(this.containerEl)
+      .setName("Auto align widgets")
+      .setDesc(
+        "Snap widgets to neighboring edges/sizes while dragging or resizing. Hold Ctrl to temporarily disable snapping."
+      )
+      .addToggle((toggle) => {
+        toggle.setValue(this.plugin.getAutoAlign());
+        toggle.onChange((value) => {
+          void this.plugin
+            .setAutoAlign(value)
+            .catch((error) => console.error("Failed to update auto align setting", error));
         });
       });
 
@@ -33,7 +47,7 @@ export class DashboardSettingsTab extends PluginSettingTab {
         button.setWarning();
         button.setButtonText("Reset layout");
         button.onClick(() => {
-          this.plugin.resetLayout().then(
+          void this.plugin.resetLayout().then(
             () => {
               new Notice("Dashboard layout reset");
             },
@@ -72,7 +86,7 @@ export class DashboardSettingsTab extends PluginSettingTab {
         .addText((text) => {
           text.setValue(preset.label ?? "");
           text.onChange((value) => {
-            updatePreset(index, { label: value || preset.id }).catch((error) =>
+            void updatePreset(index, { label: value || preset.id }).catch((error) =>
               console.error(error)
             );
           });
@@ -101,7 +115,7 @@ export class DashboardSettingsTab extends PluginSettingTab {
             patch.startOffsetDays = undefined;
             patch.endOffsetDays = undefined;
           }
-          updatePreset(index, patch).catch((error) => console.error(error));
+          void updatePreset(index, patch).catch((error) => console.error(error));
           this.display();
         });
       });
@@ -123,7 +137,7 @@ export class DashboardSettingsTab extends PluginSettingTab {
             );
             text.onChange((value) => {
               const nextValue = value.trim().length ? Number(value) : undefined;
-              updatePreset(index, {
+              void updatePreset(index, {
                 startOffsetDays: Number.isFinite(nextValue) ? nextValue : undefined,
               }).catch((error) => console.error(error));
             });
@@ -140,7 +154,7 @@ export class DashboardSettingsTab extends PluginSettingTab {
             );
             text.onChange((value) => {
               const nextValue = value.trim().length ? Number(value) : undefined;
-              updatePreset(index, {
+              void updatePreset(index, {
                 endOffsetDays: Number.isFinite(nextValue) ? nextValue : undefined,
               }).catch((error) => console.error(error));
             });
@@ -161,7 +175,7 @@ export class DashboardSettingsTab extends PluginSettingTab {
             );
             dropdown.onChange((value) => {
               const nextValue = isCalendarPreset(value) ? value : "this-week";
-              updatePreset(index, { calendar: nextValue }).catch((error) =>
+              void updatePreset(index, { calendar: nextValue }).catch((error) =>
                 console.error(error)
               );
             });
@@ -176,7 +190,7 @@ export class DashboardSettingsTab extends PluginSettingTab {
         button.setButtonText("Delete preset");
         button.onClick(() => {
           const next = presets.filter((_, idx) => idx !== index);
-          updatePresets(next, true).catch((error) => console.error(error));
+          void updatePresets(next, true).catch((error) => console.error(error));
         });
       });
     });
@@ -197,7 +211,7 @@ export class DashboardSettingsTab extends PluginSettingTab {
               endOffsetDays: 0,
             },
           ];
-          updatePresets(next, true).catch((error) => console.error(error));
+          void updatePresets(next, true).catch((error) => console.error(error));
         });
       });
   }
