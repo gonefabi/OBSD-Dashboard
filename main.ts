@@ -76,10 +76,12 @@ export default class DashboardPlugin extends Plugin {
       id: "open-dashboard",
       name: "Open dashboard",
       callback: () => {
-        void this.activateView().catch((error) =>
-          console.error("Failed to activate dashboard view", error)
-        );
+        this.openDashboardFromUi();
       },
+    });
+
+    this.addRibbonIcon("layout-dashboard", "Open OBSD Dashboard", () => {
+      this.openDashboardFromUi();
     });
 
     this.app.workspace.onLayoutReady(() => {
@@ -189,6 +191,12 @@ export default class DashboardPlugin extends Plugin {
     const leaf = this.app.workspace.getLeaf(true);
     await leaf.setViewState({ type: VIEW_TYPE_DASHBOARD, active: true });
     this.app.workspace.revealLeaf(leaf);
+  }
+
+  private openDashboardFromUi(): void {
+    void this.activateView().catch((error) =>
+      console.error("Failed to activate dashboard view", error)
+    );
   }
 
   private async waitForDataviewReady(
