@@ -26,6 +26,7 @@ import { CHART_COLORS } from "./charts/colors";
 
 export const PieChartWidget: React.FC<WidgetComponentProps<PieChartWidgetConfig>> = ({
   config,
+  onConfigPatch,
 }) => {
   const dataSource = useDataSource();
   const timePresets = useTimePresets();
@@ -52,11 +53,13 @@ export const PieChartWidget: React.FC<WidgetComponentProps<PieChartWidgetConfig>
     typeof config.legendSize === "number" ? config.legendSize : defaultLegendSize;
   const [legendSize, setLegendSize] = React.useState(configuredLegendSize);
   const [isResizingLegend, setIsResizingLegend] = React.useState(false);
+  const persistedLegendSizeRef = React.useRef(configuredLegendSize);
   const showLegend =
     legendDisplay === "list" || isResizingLegend || (legendDisplay === "hover" && isChartHovered);
 
   React.useEffect(() => {
     setLegendSize(configuredLegendSize);
+    persistedLegendSizeRef.current = configuredLegendSize;
   }, [configuredLegendSize, legendPosition]);
 
   const clampLegendSize = React.useCallback(
@@ -95,7 +98,12 @@ export const PieChartWidget: React.FC<WidgetComponentProps<PieChartWidgetConfig>
         next = state.startSize - delta;
       }
 
-      setLegendSize(clampLegendSize(next));
+      const nextSize = clampLegendSize(next);
+      setLegendSize(nextSize);
+      if (onConfigPatch && nextSize !== persistedLegendSizeRef.current) {
+        persistedLegendSizeRef.current = nextSize;
+        onConfigPatch({ legendSize: nextSize });
+      }
     };
 
     const onMouseUp = () => {
@@ -109,7 +117,7 @@ export const PieChartWidget: React.FC<WidgetComponentProps<PieChartWidgetConfig>
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
     };
-  }, [clampLegendSize, isResizingLegend]);
+  }, [clampLegendSize, isResizingLegend, onConfigPatch]);
 
   const beginLegendResize = (event: React.MouseEvent<HTMLDivElement>) => {
     if (
@@ -141,6 +149,20 @@ export const PieChartWidget: React.FC<WidgetComponentProps<PieChartWidgetConfig>
   const legendStyle: React.CSSProperties = isSideLegend
     ? { width: `${legendSize}px` }
     : { height: `${legendSize}px` };
+
+  const handleChartAreaMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (legendDisplay !== "hover") return;
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      setIsChartHovered(false);
+      return;
+    }
+
+    const isPieTarget = Boolean(
+      target.closest(".recharts-sector, .recharts-pie-sector, .recharts-active-shape")
+    );
+    setIsChartHovered(isPieTarget);
+  };
 
   React.useEffect(() => {
     let cancelled = false;
@@ -204,13 +226,15 @@ export const PieChartWidget: React.FC<WidgetComponentProps<PieChartWidgetConfig>
   return (
     <div
       ref={chartRef}
-      onMouseEnter={() => setIsChartHovered(true)}
-      onMouseLeave={() => setIsChartHovered(false)}
       className={`obsd-chart${
         showLegend ? ` is-legend-${legendPosition}` : " is-legend-none"
       }`}
     >
-      <div className="obsd-chart-area">
+      <div
+        className="obsd-chart-area"
+        onMouseMove={handleChartAreaMouseMove}
+        onMouseLeave={() => setIsChartHovered(false)}
+      >
         <ResponsiveContainer width="100%" height="100%">
           <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
             <Pie
