@@ -28,6 +28,7 @@ export interface DashboardViewProps {
   dataSource: IDataSource;
   layout: DashboardLayout;
   timePresets?: TimePreset[];
+  reloadToken?: number;
   editable?: boolean;
   autoAlign?: boolean;
   onLayoutChange?: (layout: DashboardLayout) => void;
@@ -608,6 +609,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   dataSource,
   layout,
   timePresets,
+  reloadToken = 0,
   editable = false,
   autoAlign = true,
   onLayoutChange,
@@ -1121,6 +1123,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <WidgetFrame
               key={widget.id}
               config={widget}
+              reloadToken={reloadToken}
               editable={editable}
               configOpen={configOpenId === widget.id}
               isActive={activeWidgetId === widget.id}
@@ -1148,6 +1151,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
 const WidgetFrame: React.FC<{
   config: WidgetConfig;
+  reloadToken: number;
   editable: boolean;
   configOpen: boolean;
   isActive: boolean;
@@ -1157,6 +1161,7 @@ const WidgetFrame: React.FC<{
   onResizeStart: (event: DragStartEvent, widget: WidgetConfig) => void;
 }> = ({
   config,
+  reloadToken,
   editable,
   configOpen,
   isActive,
@@ -1263,6 +1268,7 @@ const WidgetFrame: React.FC<{
       <div className="obsd-widget-body">
         <Component
           config={config}
+          reloadToken={reloadToken}
           onConfigPatch={
             editable
               ? (patch) => {

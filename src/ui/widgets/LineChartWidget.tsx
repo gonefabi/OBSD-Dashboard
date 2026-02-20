@@ -27,6 +27,7 @@ import { CHART_COLORS } from "./charts/colors";
 
 export const LineChartWidget: React.FC<WidgetComponentProps<LineChartWidgetConfig>> = ({
   config,
+  reloadToken = 0,
 }) => {
   const dataSource = useDataSource();
   const timePresets = useTimePresets();
@@ -88,6 +89,7 @@ export const LineChartWidget: React.FC<WidgetComponentProps<LineChartWidgetConfi
     config.series,
     config.timeField,
     config.timeRange,
+    reloadToken,
     timePresets,
   ]);
 

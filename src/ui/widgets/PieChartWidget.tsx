@@ -5,7 +5,6 @@ import {
   Pie,
   PieChart,
   ResponsiveContainer,
-  Tooltip,
 } from "recharts";
 import { useDataSource, useTimePresets } from "../widgetContext";
 import {
@@ -26,6 +25,7 @@ import { CHART_COLORS } from "./charts/colors";
 
 export const PieChartWidget: React.FC<WidgetComponentProps<PieChartWidgetConfig>> = ({
   config,
+  reloadToken = 0,
   onConfigPatch,
 }) => {
   const dataSource = useDataSource();
@@ -41,7 +41,7 @@ export const PieChartWidget: React.FC<WidgetComponentProps<PieChartWidgetConfig>
   );
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-  const [isChartHovered, setIsChartHovered] = React.useState(false);
+  const [hoveredSliceLabel, setHoveredSliceLabel] = React.useState<string | null>(null);
   const legendDisplay = config.legendDisplay ?? "hover";
   const legendPosition = resolveLegendPosition(
     config.legendPosition ?? "auto",
@@ -54,8 +54,16 @@ export const PieChartWidget: React.FC<WidgetComponentProps<PieChartWidgetConfig>
   const [legendSize, setLegendSize] = React.useState(configuredLegendSize);
   const [isResizingLegend, setIsResizingLegend] = React.useState(false);
   const persistedLegendSizeRef = React.useRef(configuredLegendSize);
-  const showLegend =
-    legendDisplay === "list" || isResizingLegend || (legendDisplay === "hover" && isChartHovered);
+  const showLegend = legendDisplay === "list" || isResizingLegend;
+
+  React.useEffect(() => {
+    if (legendDisplay !== "list" && isResizingLegend) {
+      setIsResizingLegend(false);
+    }
+    if (legendDisplay !== "hover" && hoveredSliceLabel) {
+      setHoveredSliceLabel(null);
+    }
+  }, [hoveredSliceLabel, isResizingLegend, legendDisplay]);
 
   React.useEffect(() => {
     setLegendSize(configuredLegendSize);
@@ -150,20 +158,6 @@ export const PieChartWidget: React.FC<WidgetComponentProps<PieChartWidgetConfig>
     ? { width: `${legendSize}px` }
     : { height: `${legendSize}px` };
 
-  const handleChartAreaMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (legendDisplay !== "hover") return;
-    const target = event.target;
-    if (!(target instanceof Element)) {
-      setIsChartHovered(false);
-      return;
-    }
-
-    const isPieTarget = Boolean(
-      target.closest(".recharts-sector, .recharts-pie-sector, .recharts-active-shape")
-    );
-    setIsChartHovered(isPieTarget);
-  };
-
   React.useEffect(() => {
     let cancelled = false;
 
@@ -216,6 +210,7 @@ export const PieChartWidget: React.FC<WidgetComponentProps<PieChartWidgetConfig>
     config.series,
     config.timeField,
     config.timeRange,
+    reloadToken,
     timePresets,
   ]);
 
@@ -232,8 +227,7 @@ export const PieChartWidget: React.FC<WidgetComponentProps<PieChartWidgetConfig>
     >
       <div
         className="obsd-chart-area"
-        onMouseMove={handleChartAreaMouseMove}
-        onMouseLeave={() => setIsChartHovered(false)}
+        onMouseLeave={() => setHoveredSliceLabel(null)}
       >
         <ResponsiveContainer width="100%" height="100%">
           <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
@@ -246,6 +240,11 @@ export const PieChartWidget: React.FC<WidgetComponentProps<PieChartWidgetConfig>
               paddingAngle={2}
               cx="50%"
               cy="50%"
+              onMouseEnter={(_, index) => {
+                const entry = data[index];
+                setHoveredSliceLabel(entry?.name ?? null);
+              }}
+              onMouseLeave={() => setHoveredSliceLabel(null)}
             >
               {data.map((entry, index) => (
                 <Cell
@@ -254,9 +253,11 @@ export const PieChartWidget: React.FC<WidgetComponentProps<PieChartWidgetConfig>
                 />
               ))}
             </Pie>
-            <Tooltip />
           </PieChart>
         </ResponsiveContainer>
+        {legendDisplay === "hover" && hoveredSliceLabel ? (
+          <div className="obsd-chart-slice-hover-label">{hoveredSliceLabel}</div>
+        ) : null}
       </div>
       {showLegend ? (
         <>

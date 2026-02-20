@@ -1,4 +1,4 @@
-import { Plugin } from "obsidian";
+import { Plugin, type EventRef } from "obsidian";
 import type { DashboardLayout } from "./src/ui/types";
 import { DashboardSettingsTab } from "./src/ui/settings/DashboardSettingsTab";
 import { cloneLayout, isDashboardLayout, normalizeLayout, resolveCollisions } from "./src/ui/layout/layoutUtils";
@@ -59,6 +59,7 @@ const DEFAULT_DATA: DashboardPluginData = {
 export default class DashboardPlugin extends Plugin {
   private data!: DashboardPluginData;
   private dataSource!: IDataSource;
+  private startupReadyPromise: Promise<void> | null = null;
 
   async onload(): Promise<void> {
     const loaded = await this.loadData();
@@ -84,8 +85,17 @@ export default class DashboardPlugin extends Plugin {
       this.openDashboardFromUi();
     });
 
+    this.registerEvent(
+      this.app.metadataCache.on("resolved", () => {
+        if (this.app.workspace.getLeavesOfType(VIEW_TYPE_DASHBOARD).length > 0) {
+          this.refreshViews(true);
+        }
+      })
+    );
+
     this.app.workspace.onLayoutReady(() => {
-      const ready = this.waitForDataviewReady();
+      this.startupReadyPromise = this.waitForInitialDataReadiness();
+      const ready = this.startupReadyPromise;
       const openDashboard = () => {
         const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_DASHBOARD)[0];
         if (existing) {
@@ -95,12 +105,12 @@ export default class DashboardPlugin extends Plugin {
             console.error("Failed to activate dashboard view", error)
           );
         }
-        this.refreshViews();
+        this.refreshViews(true);
       };
 
       void ready.then(
         () => {
-          this.refreshViews();
+          this.refreshViews(true);
         },
         (error) => console.error("Dataview readiness check failed", error)
       );
@@ -194,8 +204,19 @@ export default class DashboardPlugin extends Plugin {
   }
 
   private openDashboardFromUi(): void {
-    void this.activateView().catch((error) =>
-      console.error("Failed to activate dashboard view", error)
+    if (!this.startupReadyPromise) {
+      this.startupReadyPromise = this.waitForInitialDataReadiness();
+    }
+    const ready = this.startupReadyPromise;
+    void ready.then(
+      () => this.activateView(),
+      (error) => {
+        console.error("Startup readiness check failed", error);
+        return this.activateView();
+      }
+    ).then(
+      () => this.refreshViews(true),
+      (error) => console.error("Failed to activate dashboard view", error)
     );
   }
 
@@ -220,6 +241,43 @@ export default class DashboardPlugin extends Plugin {
       };
 
       tick();
+    });
+  }
+
+  private async waitForInitialDataReadiness(): Promise<void> {
+    const [dataviewReady, metadataReady] = await Promise.all([
+      this.waitForDataviewReady(),
+      this.waitForMetadataResolved(),
+    ]);
+
+    if (!dataviewReady) {
+      console.warn("Dataview API was not ready before dashboard startup timeout.");
+    }
+    if (!metadataReady) {
+      console.warn("Metadata cache was not fully resolved before dashboard startup timeout.");
+    }
+  }
+
+  private waitForMetadataResolved(timeoutMs = 8000): Promise<boolean> {
+    const hasAnyMetadata =
+      Object.keys(this.app.metadataCache.resolvedLinks).length > 0 ||
+      Object.keys(this.app.metadataCache.unresolvedLinks).length > 0;
+    if (hasAnyMetadata) return Promise.resolve(true);
+
+    return new Promise((resolve) => {
+      let settled = false;
+      let ref: EventRef | null = null;
+
+      const finish = (value: boolean) => {
+        if (settled) return;
+        settled = true;
+        if (ref) this.app.metadataCache.offref(ref);
+        clearTimeout(timer);
+        resolve(value);
+      };
+
+      ref = this.app.metadataCache.on("resolved", () => finish(true));
+      const timer = setTimeout(() => finish(false), timeoutMs);
     });
   }
 
@@ -265,11 +323,11 @@ export default class DashboardPlugin extends Plugin {
     };
   }
 
-  private refreshViews(): void {
+  private refreshViews(reloadData = false): void {
     this.app.workspace.getLeavesOfType(VIEW_TYPE_DASHBOARD).forEach((leaf) => {
       const view = leaf.view;
       if (view instanceof DashboardItemView) {
-        view.refresh();
+        view.refresh(reloadData);
       }
     });
   }

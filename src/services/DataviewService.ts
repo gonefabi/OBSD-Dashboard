@@ -43,9 +43,9 @@ export class DataviewService implements IDataSource {
     this.app = app;
   }
 
-  queryTasks(filter: string): Promise<Task[]> {
-    const api = this.getDataviewApi();
-    if (!api) return Promise.resolve([]);
+  async queryTasks(filter: string): Promise<Task[]> {
+    const api = await this.waitForDataviewApi();
+    if (!api) return [];
 
     try {
       const pages = this.toArray(api.pages(filter?.trim() || undefined));
@@ -59,23 +59,23 @@ export class DataviewService implements IDataSource {
         }
       }
 
-      return Promise.resolve(tasks);
+      return tasks;
     } catch (error) {
       console.warn("DataviewService.queryTasks failed", error);
-      return Promise.resolve([]);
+      return [];
     }
   }
 
-  queryPages(query: string): Promise<Page[]> {
-    const api = this.getDataviewApi();
-    if (!api) return Promise.resolve([]);
+  async queryPages(query: string): Promise<Page[]> {
+    const api = await this.waitForDataviewApi();
+    if (!api) return [];
 
     try {
       const pages = this.toArray(api.pages(query));
-      return Promise.resolve(pages.map((page) => this.mapPage(page as DataviewPage)));
+      return pages.map((page) => this.mapPage(page as DataviewPage));
     } catch (error) {
       console.warn("DataviewService.queryPages failed", error);
-      return Promise.resolve([]);
+      return [];
     }
   }
 
@@ -87,6 +87,23 @@ export class DataviewService implements IDataSource {
     const plugins = (this.app as unknown as { plugins?: { plugins?: Record<string, { api?: DataviewApi }> } })
       .plugins?.plugins;
     return plugins?.dataview?.api ?? null;
+  }
+
+  private async waitForDataviewApi(
+    timeoutMs = 10000,
+    intervalMs = 250
+  ): Promise<DataviewApi | null> {
+    const direct = this.getDataviewApi();
+    if (direct) return direct;
+
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      await new Promise<void>((resolve) => setTimeout(resolve, intervalMs));
+      const api = this.getDataviewApi();
+      if (api) return api;
+    }
+
+    return null;
   }
 
   private toArray(value: unknown): unknown[] {

@@ -369,7 +369,27 @@
   flex: 1;
   min-height: 120px;
   min-width: 0;
+  position: relative;
   overflow: hidden;
+}
+
+.obsd-chart-slice-hover-label {
+  position: absolute;
+  left: 50%;
+  bottom: 8px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 16px);
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--background-primary-alt, var(--background-secondary));
+  border: 1px solid var(--background-modifier-border);
+  color: var(--text-normal);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  z-index: 2;
 }
 
 .obsd-chart-legend {

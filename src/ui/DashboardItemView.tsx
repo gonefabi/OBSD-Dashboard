@@ -23,6 +23,7 @@ export type DashboardPluginApi = {
 export class DashboardItemView extends ItemView {
   private plugin: DashboardPluginApi;
   private root: Root | null = null;
+  private reloadToken = 0;
 
   constructor(leaf: WorkspaceLeaf, plugin: DashboardPluginApi) {
     super(leaf);
@@ -78,7 +79,10 @@ export class DashboardItemView extends ItemView {
     this.root = null;
   }
 
-  refresh(): void {
+  refresh(reloadData = false): void {
+    if (reloadData) {
+      this.reloadToken += 1;
+    }
     this.render();
   }
 
@@ -90,6 +94,7 @@ export class DashboardItemView extends ItemView {
         dataSource: this.plugin.getDataSource(),
         layout: this.plugin.getLayout(),
         timePresets: this.plugin.getTimePresets(),
+        reloadToken: this.reloadToken,
         editable: this.plugin.getEditable(),
         autoAlign: this.plugin.getAutoAlign(),
         onLayoutChange: (layout: DashboardLayout) => {
