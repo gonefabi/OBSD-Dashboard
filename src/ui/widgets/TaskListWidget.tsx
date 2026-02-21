@@ -8,6 +8,7 @@ import type { WidgetComponentProps } from "./types";
 
 export const TaskListWidget: React.FC<WidgetComponentProps<TaskListWidgetConfig>> = ({
   config,
+  reloadToken = 0,
 }) => {
   const dataSource = useDataSource();
   const [tasks, setTasks] = React.useState<Task[]>([]);
@@ -47,7 +48,7 @@ export const TaskListWidget: React.FC<WidgetComponentProps<TaskListWidgetConfig>
     return () => {
       cancelled = true;
     };
-  }, [dataSource, filters, config.showCompleted, config.limit]);
+  }, [dataSource, filters, config.showCompleted, config.limit, reloadToken]);
 
   const toggleTask = async (task: Task) => {
     if (task.line < 0) return;

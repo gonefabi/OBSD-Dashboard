@@ -28,6 +28,7 @@ export interface DashboardViewProps {
   dataSource: IDataSource;
   layout: DashboardLayout;
   timePresets?: TimePreset[];
+  reloadToken?: number;
   editable?: boolean;
   autoAlign?: boolean;
   onLayoutChange?: (layout: DashboardLayout) => void;
@@ -72,6 +73,7 @@ const MIN_WIDGET_HEIGHT = 120;
 const FALLBACK_WIDGET_WIDTH = 320;
 const FALLBACK_WIDGET_HEIGHT = 220;
 const SNAP_THRESHOLD = 24;
+const RESIZE_SNAP_THRESHOLD = 36;
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(Math.max(value, min), max);
@@ -81,6 +83,10 @@ type Rect = {
   y: number;
   w: number;
   h: number;
+};
+
+type PositionedRect = Rect & {
+  id: string;
 };
 
 const rangesOverlap = (
@@ -246,36 +252,64 @@ const snapResizeSize = (
   gap: number,
   maxW: number
 ): { w: number; h: number } => {
-  const widthCandidates = [rawW];
-  const heightCandidates = [rawH];
+  const widthCandidates: number[] = [];
+  const heightCandidates: number[] = [];
 
   for (const other of others) {
-    const verticalOverlap = rangesOverlap(originY, rawH, other.y, other.h);
-    const horizontalOverlap = rangesOverlap(originX, rawW, other.x, other.w);
+    widthCandidates.push(other.w);
+    heightCandidates.push(other.h);
 
-    if (verticalOverlap) {
-      widthCandidates.push(other.w);
+    const verticalBandRelation =
+      rangesOverlap(originY, rawH, other.y, other.h) ||
+      Math.abs(originY - other.y) <= RESIZE_SNAP_THRESHOLD * 2 ||
+      Math.abs(originY + rawH - (other.y + other.h)) <= RESIZE_SNAP_THRESHOLD * 2 ||
+      Math.abs(originY - (other.y + other.h)) <= RESIZE_SNAP_THRESHOLD * 2 ||
+      Math.abs(originY + rawH - other.y) <= RESIZE_SNAP_THRESHOLD * 2;
+    const horizontalBandRelation =
+      rangesOverlap(originX, rawW, other.x, other.w) ||
+      Math.abs(originX - other.x) <= RESIZE_SNAP_THRESHOLD * 2 ||
+      Math.abs(originX + rawW - (other.x + other.w)) <= RESIZE_SNAP_THRESHOLD * 2 ||
+      Math.abs(originX - (other.x + other.w)) <= RESIZE_SNAP_THRESHOLD * 2 ||
+      Math.abs(originX + rawW - other.x) <= RESIZE_SNAP_THRESHOLD * 2;
+
+    if (verticalBandRelation) {
+      widthCandidates.push(other.x - originX);
       widthCandidates.push(other.x - gap - originX);
       widthCandidates.push(other.x + other.w - originX);
       widthCandidates.push(other.x + other.w + gap - originX);
     }
 
-    if (horizontalOverlap) {
-      heightCandidates.push(other.h);
+    if (horizontalBandRelation) {
+      heightCandidates.push(other.y - originY);
       heightCandidates.push(other.y - gap - originY);
       heightCandidates.push(other.y + other.h - originY);
       heightCandidates.push(other.y + other.h + gap - originY);
     }
   }
 
+  const validWidthCandidates = uniqueRounded(widthCandidates).filter(
+    (value) => value >= MIN_WIDGET_WIDTH && value <= maxW
+  );
+  const validHeightCandidates = uniqueRounded(heightCandidates).filter(
+    (value) => value >= MIN_WIDGET_HEIGHT
+  );
+
   const snappedW = clamp(
-    snapAxis(rawW, uniqueRounded(widthCandidates), SNAP_THRESHOLD),
+    snapAxis(
+      rawW,
+      validWidthCandidates.length > 0 ? validWidthCandidates : [rawW],
+      RESIZE_SNAP_THRESHOLD
+    ),
     MIN_WIDGET_WIDTH,
     maxW
   );
   const snappedH = Math.max(
     MIN_WIDGET_HEIGHT,
-    snapAxis(rawH, uniqueRounded(heightCandidates), SNAP_THRESHOLD)
+    snapAxis(
+      rawH,
+      validHeightCandidates.length > 0 ? validHeightCandidates : [rawH],
+      RESIZE_SNAP_THRESHOLD
+    )
   );
 
   return { w: snappedW, h: snappedH };
@@ -324,6 +358,172 @@ const resolveResizeCollision = (
 
   if (!hasOverlap(next, others)) return next;
   return previous;
+};
+
+const pushRightWithinBounds = (
+  rect: PositionedRect,
+  targetX: number,
+  bounds: ContainerMetrics
+): boolean => {
+  const maxX = bounds.width - bounds.padding - rect.w;
+  if (targetX > maxX) return false;
+  if (targetX <= rect.x) return true;
+  rect.x = targetX;
+  return true;
+};
+
+const pushDown = (rect: PositionedRect, targetY: number): void => {
+  if (targetY > rect.y) rect.y = targetY;
+};
+
+const pushAwayFromAnchor = (
+  rect: PositionedRect,
+  anchor: Rect,
+  bounds: ContainerMetrics,
+  gap: number
+): boolean => {
+  const verticalOverlap = rangesOverlap(anchor.y, anchor.h, rect.y, rect.h);
+  const horizontalOverlap = rangesOverlap(anchor.x, anchor.w, rect.x, rect.w);
+  const pushRightTarget = anchor.x + anchor.w + gap;
+  const pushDownTarget = anchor.y + anchor.h + gap;
+
+  if (verticalOverlap && rect.x >= anchor.x) {
+    return pushRightWithinBounds(rect, pushRightTarget, bounds);
+  }
+
+  if (horizontalOverlap && rect.y >= anchor.y) {
+    pushDown(rect, pushDownTarget);
+    return true;
+  }
+
+  if (verticalOverlap) {
+    return pushRightWithinBounds(rect, pushRightTarget, bounds);
+  }
+
+  if (horizontalOverlap) {
+    pushDown(rect, pushDownTarget);
+    return true;
+  }
+
+  return false;
+};
+
+const resolvePairOverlap = (
+  first: PositionedRect,
+  second: PositionedRect,
+  bounds: ContainerMetrics,
+  gap: number
+): boolean => {
+  const firstIsLeft = first.x <= second.x;
+  const left = firstIsLeft ? first : second;
+  const right = firstIsLeft ? second : first;
+
+  if (rangesOverlap(left.y, left.h, right.y, right.h)) {
+    return pushRightWithinBounds(right, left.x + left.w + gap, bounds);
+  }
+
+  const firstIsTop = first.y <= second.y;
+  const top = firstIsTop ? first : second;
+  const bottom = firstIsTop ? second : first;
+  pushDown(bottom, top.y + top.h + gap);
+  return true;
+};
+
+const tryResolveResizeByPushing = (
+  candidate: Rect,
+  others: PositionedRect[],
+  bounds: ContainerMetrics,
+  gap: number
+): Map<string, Rect> | null => {
+  const placed = others.map((rect) => ({ ...rect }));
+  const maxPasses = Math.max(40, placed.length * placed.length * 3);
+
+  for (let pass = 0; pass < maxPasses; pass += 1) {
+    let changed = false;
+
+    for (const rect of placed) {
+      if (!rectsOverlap(candidate, rect)) continue;
+      if (!pushAwayFromAnchor(rect, candidate, bounds, gap)) return null;
+      changed = true;
+    }
+
+    for (let i = 0; i < placed.length; i += 1) {
+      for (let j = i + 1; j < placed.length; j += 1) {
+        const first = placed[i];
+        const second = placed[j];
+        if (!rectsOverlap(first, second)) continue;
+        if (!resolvePairOverlap(first, second, bounds, gap)) return null;
+        changed = true;
+      }
+    }
+
+    if (!changed) {
+      const moved = new Map<string, Rect>();
+      for (const rect of placed) {
+        moved.set(rect.id, { x: rect.x, y: rect.y, w: rect.w, h: rect.h });
+      }
+      return moved;
+    }
+  }
+
+  return null;
+};
+
+const reduceResizeStep = (value: number, minimum: number): number => {
+  const remaining = value - minimum;
+  if (remaining > 20) return value - 6;
+  if (remaining > 8) return value - 3;
+  return value - 1;
+};
+
+const resolveResizeWithPush = (
+  candidate: Rect,
+  previous: Rect,
+  layout: DashboardLayout,
+  activeId: string,
+  bounds: ContainerMetrics,
+  gap: number,
+  allowPush: boolean
+): { active: Rect; moved: Map<string, Rect> } => {
+  const others = layout.widgets
+    .filter((widget) => widget.id !== activeId)
+    .map((widget) => ({ id: widget.id, x: widget.x, y: widget.y, w: widget.w, h: widget.h }));
+
+  if (!allowPush) {
+    const resolved = resolveResizeCollision(
+      candidate,
+      previous,
+      others.map(({ x, y, w, h }) => ({ x, y, w, h })),
+      bounds,
+      gap
+    );
+    return { active: resolved, moved: new Map<string, Rect>() };
+  }
+
+  let current = { ...candidate };
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const moved = tryResolveResizeByPushing(current, others, bounds, gap);
+    if (moved) return { active: current, moved };
+
+    const canShrinkW = current.w > MIN_WIDGET_WIDTH;
+    const canShrinkH = current.h > MIN_WIDGET_HEIGHT;
+    if (!canShrinkW && !canShrinkH) break;
+
+    if (canShrinkW && (!canShrinkH || current.w - MIN_WIDGET_WIDTH >= current.h - MIN_WIDGET_HEIGHT)) {
+      current = { ...current, w: Math.max(MIN_WIDGET_WIDTH, reduceResizeStep(current.w, MIN_WIDGET_WIDTH)) };
+    } else {
+      current = { ...current, h: Math.max(MIN_WIDGET_HEIGHT, reduceResizeStep(current.h, MIN_WIDGET_HEIGHT)) };
+    }
+  }
+
+  const fallback = resolveResizeCollision(
+    current,
+    previous,
+    others.map(({ x, y, w, h }) => ({ x, y, w, h })),
+    bounds,
+    gap
+  );
+  return { active: fallback, moved: new Map<string, Rect>() };
 };
 
 const useContainerMetrics = (
@@ -409,6 +609,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   dataSource,
   layout,
   timePresets,
+  reloadToken = 0,
   editable = false,
   autoAlign = true,
   onLayoutChange,
@@ -764,7 +965,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         updateWidget(
           activeDrag.id,
           (widget) => ({ ...widget, x: resolved.x, y: resolved.y }),
-          false
+          true
         );
         return;
       }
@@ -803,20 +1004,59 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           w: activeResize.lastW,
           h: activeResize.lastH,
         };
-        const resolved = resolveResizeCollision(proposed, previous, others, bounds, gap);
+        const resizeResolution = resolveResizeWithPush(
+          proposed,
+          previous,
+          liveLayout,
+          activeResize.id,
+          bounds,
+          gap,
+          shouldSnap
+        );
+        const resolved = resizeResolution.active;
+        const moved = resizeResolution.moved;
+        const hasMovedOthers = moved.size > 0;
 
-        if (resolved.w === activeResize.lastW && resolved.h === activeResize.lastH) return;
+        if (
+          resolved.w === activeResize.lastW &&
+          resolved.h === activeResize.lastH &&
+          !hasMovedOthers
+        ) {
+          return;
+        }
         activeResize.lastW = resolved.w;
         activeResize.lastH = resolved.h;
 
-        updateWidget(
-          activeResize.id,
-          (widget) => ({ ...widget, w: resolved.w, h: resolved.h }),
-          false
-        );
+        let nextLayout: DashboardLayout | null = null;
+        setCurrentLayout((prev) => {
+          let changed = false;
+          const widgets = prev.widgets.map((widget) => {
+            if (widget.id === activeResize.id) {
+              if (widget.w === resolved.w && widget.h === resolved.h) return widget;
+              changed = true;
+              return { ...widget, w: resolved.w, h: resolved.h };
+            }
+
+            const shifted = moved.get(widget.id);
+            if (!shifted) return widget;
+            if (widget.x === shifted.x && widget.y === shifted.y) return widget;
+            changed = true;
+            return { ...widget, x: shifted.x, y: shifted.y };
+          });
+
+          if (!changed) return prev;
+          const normalized = normalizeLayout({ ...prev, widgets });
+          const resolvedLayout = resolveCollisions(normalized, activeResize.id);
+          layoutRef.current = resolvedLayout;
+          nextLayout = resolvedLayout;
+          return resolvedLayout;
+        });
+        if (nextLayout && onLayoutChange) {
+          onLayoutChange(nextLayout);
+        }
       }
     },
-    [autoAlign, updateWidget]
+    [autoAlign, onLayoutChange, updateWidget]
   );
 
   const handleMouseMove = React.useCallback(
@@ -883,6 +1123,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <WidgetFrame
               key={widget.id}
               config={widget}
+              reloadToken={reloadToken}
               editable={editable}
               configOpen={configOpenId === widget.id}
               isActive={activeWidgetId === widget.id}
@@ -910,6 +1151,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
 const WidgetFrame: React.FC<{
   config: WidgetConfig;
+  reloadToken: number;
   editable: boolean;
   configOpen: boolean;
   isActive: boolean;
@@ -919,6 +1161,7 @@ const WidgetFrame: React.FC<{
   onResizeStart: (event: DragStartEvent, widget: WidgetConfig) => void;
 }> = ({
   config,
+  reloadToken,
   editable,
   configOpen,
   isActive,
@@ -1023,7 +1266,17 @@ const WidgetFrame: React.FC<{
         <WidgetConfigPanel config={config} onUpdate={onUpdate} />
       ) : null}
       <div className="obsd-widget-body">
-        <Component config={config} />
+        <Component
+          config={config}
+          reloadToken={reloadToken}
+          onConfigPatch={
+            editable
+              ? (patch) => {
+                  onUpdate((widget) => ({ ...widget, ...patch }));
+                }
+              : undefined
+          }
+        />
       </div>
       {editable ? (
         <div

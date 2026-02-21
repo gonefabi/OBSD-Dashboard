@@ -17,6 +17,7 @@ import { LucideIcon } from "./LucideIcon";
 
 export const StatsWidget: React.FC<WidgetComponentProps<StatsWidgetConfig>> = ({
   config,
+  reloadToken = 0,
 }) => {
   const dataSource = useDataSource();
   const timePresets = useTimePresets();
@@ -122,6 +123,7 @@ export const StatsWidget: React.FC<WidgetComponentProps<StatsWidgetConfig>> = ({
     compareRange,
     compareMode,
     compareBasis,
+    reloadToken,
     timePresets,
   ]);
 

@@ -3,7 +3,12 @@
 A dashboard view for Obsidian with draggable widgets and Dataview-powered data.
 
 ## How to use
-1. Run the command **“Open Dashboard”**.
+After installing and enabling the plugin, open the dashboard with one of these options:
+1. Click the **dashboard icon** in Obsidian’s left ribbon (**Open OBSD Dashboard**).
+2. Run the command **“Open Dashboard”** from the Command Palette.
+3. (Optional) Enable **Open dashboard on startup** in plugin settings.
+
+Then:
 2. Click the **three dots** menu and choose **Edit dashboard**.
 3. Use the dashed **+ Add widget** tile to add widgets.
 4. Click **Edit** on a widget to configure it.

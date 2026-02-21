@@ -79,6 +79,7 @@ export interface PieChartWidgetConfig extends WidgetBaseConfig {
   timeRange?: TimeRangeConfig;
   legendPosition?: LegendPosition;
   legendDisplay?: LegendDisplay;
+  legendSize?: number;
 }
 
 export interface LineChartWidgetConfig extends WidgetBaseConfig {
@@ -91,6 +92,9 @@ export interface LineChartWidgetConfig extends WidgetBaseConfig {
   filter?: QueryFilter;
   timeField?: TimeField;
   timeRange?: TimeRangeConfig;
+  legendSize?: number;
+  legendPosition?: LegendPosition;
+  legendDisplay?: LegendDisplay;
 }
 
 export interface ChartSeriesConfig {

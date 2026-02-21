@@ -12,6 +12,7 @@ import type { WidgetComponentProps } from "./types";
 
 export const StatusBarWidget: React.FC<WidgetComponentProps<StatusBarWidgetConfig>> = ({
   config,
+  reloadToken = 0,
 }) => {
   const dataSource = useDataSource();
   const timePresets = useTimePresets();
@@ -59,7 +60,7 @@ export const StatusBarWidget: React.FC<WidgetComponentProps<StatusBarWidgetConfi
     return () => {
       cancelled = true;
     };
-  }, [dataSource, countTarget, filters, timeField, timeRange, timePresets]);
+  }, [dataSource, countTarget, filters, timeField, timeRange, timePresets, reloadToken]);
 
   if (loading) return <div>Loading...</div>;
   if (error) return <div>{error}</div>;

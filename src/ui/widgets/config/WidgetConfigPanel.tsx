@@ -1180,7 +1180,7 @@ export const WidgetConfigPanel: React.FC<WidgetConfigPanelProps> = ({
     const effectiveQuery = buildQueryFromFilter(filter);
     const seriesQueries = series.map((entry) => buildQueryFromFilter(entry.filter));
     const combinedQuery = combineChartQueries(seriesQueries);
-    const legendDisplay = chartConfig.legendDisplay ?? "list";
+    const legendDisplay = chartConfig.legendDisplay ?? "hover";
     const legendPosition = chartConfig.legendPosition ?? "auto";
     const groupBy = chartConfig.groupBy ?? "tag";
     const limit = chartConfig.limit ?? 5;
@@ -1200,6 +1200,80 @@ export const WidgetConfigPanel: React.FC<WidgetConfigPanelProps> = ({
     const updateSeries = (next: ChartSeriesConfig[]) => {
       onUpdate((widget) => updateChartSeries(widget, next));
     };
+
+    const legendFields = (
+      <>
+        <div className="obsd-widget-config-row">
+          <label>Legend display</label>
+          <select
+            value={legendDisplay}
+            onChange={(event) => {
+              const value = toLegendDisplay(event.target.value);
+              onUpdate((widget) => {
+                if (widget.type !== "pie-chart" && widget.type !== "line-chart") {
+                  return widget;
+                }
+                return {
+                  ...widget,
+                  legendDisplay: value,
+                };
+              });
+            }}
+          >
+            <option value="list">List</option>
+            <option value="hover">Hover</option>
+          </select>
+        </div>
+        {legendDisplay === "list" ? (
+          <>
+            <div className="obsd-widget-config-row">
+              <label>Legend position</label>
+              <select
+                value={legendPosition}
+                onChange={(event) => {
+                  const value = toLegendPosition(event.target.value);
+                  onUpdate((widget) => {
+                    if (widget.type !== "pie-chart" && widget.type !== "line-chart") {
+                      return widget;
+                    }
+                    return {
+                      ...widget,
+                      legendPosition: value,
+                    };
+                  });
+                }}
+              >
+                <option value="auto">Auto</option>
+                <option value="left">Left</option>
+                <option value="right">Right</option>
+                <option value="bottom">Bottom</option>
+                <option value="top">Top</option>
+              </select>
+            </div>
+            <div className="obsd-widget-config-row">
+              <label>Legend size</label>
+              <input
+                type="number"
+                value={String(chartConfig.legendSize ?? "")}
+                placeholder="100"
+                onChange={(event) => {
+                  const value = toOptionalNumber(event.target.value);
+                  onUpdate((widget) => {
+                    if (widget.type !== "pie-chart" && widget.type !== "line-chart") {
+                      return widget;
+                    }
+                    return {
+                      ...widget,
+                      legendSize: value,
+                    };
+                  });
+                }}
+              />
+            </div>
+          </>
+        ) : null}
+      </>
+    );
 
     const dataFields = (
       <>
@@ -1440,75 +1514,10 @@ export const WidgetConfigPanel: React.FC<WidgetConfigPanelProps> = ({
             <div className="obsd-widget-config-note">Series query: {combinedQuery}</div>
           </>
         )}
-        <div className="obsd-widget-config-row">
-          <label>Legend display</label>
-          <select
-            value={legendDisplay}
-            onChange={(event) => {
-              const value = toLegendDisplay(event.target.value);
-              onUpdate((widget) => {
-                if (widget.type !== "pie-chart" && widget.type !== "line-chart") {
-                  return widget;
-                }
-                return {
-                  ...widget,
-                  legendDisplay: value,
-                };
-              });
-            }}
-          >
-            <option value="list">List</option>
-            <option value="hover">Hover</option>
-          </select>
-        </div>
-        <div className="obsd-widget-config-row">
-          <label>Legend position</label>
-          <select
-            value={legendPosition}
-            onChange={(event) => {
-              const value = toLegendPosition(event.target.value);
-              onUpdate((widget) => {
-                if (widget.type !== "pie-chart" && widget.type !== "line-chart") {
-                  return widget;
-                }
-                return {
-                  ...widget,
-                  legendPosition: value,
-                };
-              });
-            }}
-          >
-            <option value="auto">Auto</option>
-            <option value="left">Left</option>
-            <option value="right">Right</option>
-            <option value="bottom">Bottom</option>
-            <option value="top">Top</option>
-          </select>
-        </div>
-        <div className="obsd-widget-config-row">
-          <label>Legend size</label>
-          <input
-            type="number"
-            value={String(chartConfig.legendSize ?? "")}
-            placeholder="100"
-            onChange={(event) => {
-              const value = toOptionalNumber(event.target.value);
-              onUpdate((widget) => {
-                if (widget.type !== "pie-chart" && widget.type !== "line-chart") {
-                  return widget;
-                }
-                return {
-                  ...widget,
-                  legendSize: value,
-                };
-              });
-            }}
-          />
-        </div>
       </>
     );
 
-    const viewFields = viewSection();
+    const viewFields = viewSection(legendFields);
 
     return (
       <div className="obsd-widget-config">
